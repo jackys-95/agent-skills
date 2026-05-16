@@ -39,7 +39,7 @@ At the end of a meaningful session:
 2. Rewrite `active.md` to reflect the current resumable state.
 3. Update checklist/progress in the work item `README.md` if needed.
 4. Link any new design/spec/decision docs.
-5. Run `qmd update` and `qmd embed` if the watcher is not known to be active.
+5. Run `memory_bank.py reindex --embed-optional` if the watcher is not known to be active.
 
 History should be append-only. Active context should be compact and replaceable.
 
@@ -94,4 +94,4 @@ When work is done:
 1. Set status to `done`, `shipped`, `cancelled`, or `superseded`.
 2. Move remaining useful context out of `active.md` into README/history/decisions.
 3. Leave `active.md` as a short terminal state summary.
-4. Reindex qmd.
+4. Reindex through `memory_bank.py reindex --embed-optional`.

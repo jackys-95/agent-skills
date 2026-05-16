@@ -58,16 +58,14 @@ The root `.memory-bank/collections.yaml` exists for cross-project lookup. Each p
 ## Setup Commands
 
 ```bash
-qmd collection add ~/memory/task-memory-bank --name task-memory-bank
-qmd collection add ~/memory/task-memory-bank/projects/example_project --name mb-example-project
-qmd embed
+python3 <skill-dir>/scripts/memory_bank.py setup-qmd --root ~/memory/task-memory-bank
+python3 <skill-dir>/scripts/memory_bank.py setup-qmd --root ~/memory/task-memory-bank --project example_project
+python3 <skill-dir>/scripts/memory_bank.py reindex --embed-optional
 ```
 
-If using qmd contexts:
+The script wraps qmd collection/context setup so agents do not have to remember raw qmd maintenance commands. For project setup, it registers the project collection and adds the project README as qmd context when present.
 
-```bash
-qmd context add example_project ~/memory/task-memory-bank/projects/example_project/README.md
-```
+Use `qmd` directly only for retrieval commands or when the script cannot express the needed operation.
 
 ## Integration Modes
 
@@ -119,8 +117,7 @@ Use lexical search for ids, filenames, and exact terms. Use vector search for co
 After structured writes:
 
 ```bash
-qmd update
-qmd embed
+python3 <skill-dir>/scripts/memory_bank.py reindex --embed-optional
 ```
 
-If that fails, keep the markdown writes and report the qmd failure.
+The script runs `qmd update` first, then `qmd embed` unless `--no-embed` is passed. Use `--embed-optional` in agent workflows so local embedding/runtime failures do not hide successful markdown writes or lexical indexing. If reindexing fails, keep the markdown writes and report the failure.
