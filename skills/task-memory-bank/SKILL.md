@@ -102,15 +102,26 @@ python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py resolve-project --root ~/githu
 
 Use the returned `collection`, `memory_path`, and `read_first` files. Do not guess collection names when `.memory-bank/collections.yaml` is available.
 
-Prefer this pattern:
+This skill owns the memory-bank workflow: project resolution, entrypoint files, active context, history, and handoff shape. For qmd retrieval mechanics, use the dedicated qmd skill or qmd MCP tools when available. Let that integration choose MCP or CLI; pass it the resolved collection, known paths, and search intent.
+
+When resuming work, ask qmd for targeted supporting context:
+
+```text
+collection: mb-candidate-profile-hub
+lex: TASK-0042 empty avatar
+vec: what context is needed to resume the empty avatar task
+known paths: projects/candidate_profile_hub/work/tasks/TASK-0042-fix-empty-avatar/active.md
+```
+
+Fallback CLI pattern when no qmd skill or MCP tools are available:
 
 ```bash
-qmd query -c mb-candidate-profile-hub $'lex: TASK-0042 empty avatar\nvec: how is empty avatar state handled in candidate profile UI'
+qmd query -c mb-candidate-profile-hub $'lex: TASK-0042 empty avatar\nvec: what context is needed to resume the empty avatar task'
 qmd get projects/candidate_profile_hub/work/tasks/TASK-0042-fix-empty-avatar/active.md
 qmd multi-get "projects/candidate_profile_hub/overviews/*.md" -l 80
 ```
 
-After memory-bank writes, run:
+After memory-bank writes, reindex through the qmd skill if available, or run:
 
 ```bash
 qmd update
@@ -119,7 +130,7 @@ qmd embed
 
 If qmd is unavailable or unhealthy, still update markdown files and tell the user reindexing could not be completed.
 
-See [references/qmd.md](references/qmd.md) for collection naming and search habits.
+See [references/qmd.md](references/qmd.md) for collection naming, integration modes, and search habits.
 
 ## Slash Command Adapters
 

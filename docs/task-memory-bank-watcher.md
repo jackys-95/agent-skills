@@ -138,7 +138,7 @@ memory-bank doctor
 
 ## Skill Integration
 
-Memory-bank skills should treat the watcher as a safety net. Structured write workflows should still explicitly reindex after important changes:
+Memory-bank skills should treat the watcher as a safety net. Structured write workflows should still explicitly reindex after important changes through the qmd skill when available, or through the CLI fallback:
 
 ```bash
 qmd update
@@ -147,11 +147,13 @@ qmd embed
 
 That keeps deterministic agent workflows reliable even when the watcher is not running.
 
+qmd's MCP server is a retrieval integration, not a filesystem watcher. For long-running agent sessions, `qmd mcp --http --daemon` can avoid repeated model loading, but markdown edits still need `qmd update` and `qmd embed` unless qmd adds native watch behavior.
+
 ## Implementation Preference
 
 First check whether the installed qmd version has native watch/reindex support. If it does, wire `memory-bank watch` to qmd's native watcher or document the qmd command directly.
 
-Only build a local watcher if qmd still lacks the needed behavior. In that fallback case, use Node with `chokidar`:
+Only build a local watcher if qmd still lacks the needed filesystem watch behavior. In that fallback case, use Node with `chokidar`:
 
 - Works well on macOS.
 - Handles add/change/unlink events cleanly.

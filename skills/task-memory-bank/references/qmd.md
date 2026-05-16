@@ -67,25 +67,42 @@ If using qmd contexts:
 qmd context add candidate_profile_hub ~/github/task-memory-bank/projects/candidate_profile_hub/README.md
 ```
 
+## Integration Modes
+
+Prefer the dedicated qmd skill or qmd MCP tools when the agent has them. The task-memory-bank skill should supply domain-specific inputs, not duplicate transport details:
+
+- `collection`: resolved from `.memory-bank/collections.yaml`.
+- `read_first`: entrypoint files to read before broad search.
+- `lex`: work ids, filenames, exact domain terms, branch names, and error strings.
+- `vec`: natural-language resume questions and conceptual context needs.
+- `known paths`: active files, overview files, specs, designs, or decisions already referenced by entrypoints.
+
+Use qmd MCP for retrieval when available:
+
+```json
+{
+  "searches": [
+    { "type": "lex", "query": "TASK-0042 empty avatar" },
+    { "type": "vec", "query": "what context is needed to resume the empty avatar task" }
+  ],
+  "collections": ["mb-candidate-profile-hub"],
+  "limit": 10
+}
+```
+
+Use CLI as the portable fallback. Prefer structured or JSON-friendly commands when scripting:
+
+```bash
+qmd query -c mb-candidate-profile-hub --json $'lex: TASK-0042 empty avatar\nvec: what context is needed to resume the empty avatar task'
+qmd get projects/candidate_profile_hub/work/tasks/TASK-0042-fix-empty-avatar/active.md
+qmd multi-get "projects/candidate_profile_hub/overviews/*.md" -l 80
+```
+
+Reserve the qmd SDK for a future memory-bank service, watcher, or richer doctor command. Do not require it for normal skill workflows.
+
 ## Search Pattern
 
-Use lexical search for ids, filenames, and exact terms:
-
-```bash
-qmd query -c mb-candidate-profile-hub $'lex: TASK-0042 avatar'
-```
-
-Use vector search for conceptual recall:
-
-```bash
-qmd query -c mb-candidate-profile-hub $'vec: how does the profile UI represent missing avatar images'
-```
-
-Use both when resuming:
-
-```bash
-qmd query -c mb-candidate-profile-hub $'lex: TASK-0042 empty avatar\nvec: what context is needed to resume the empty avatar task'
-```
+Use lexical search for ids, filenames, and exact terms. Use vector search for conceptual recall. Use both when resuming work. Put the strongest exact query first so qmd fusion weights it highly.
 
 ## Retrieval Discipline
 
