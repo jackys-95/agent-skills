@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Memory Bank"
+  short_description: "qmd-backed project task memory workflows"
+  default_prompt: "Use $task-memory-bank to initialize or resume a qmd-backed task memory bank for this project."
