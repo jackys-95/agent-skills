@@ -17,7 +17,7 @@ The local watcher should remain a fallback only if qmd does not provide the need
 
 ## Initial Scope
 
-- Watch the task memory bank root, such as `~/github/task-memory-bank`.
+- Watch the task memory bank root, such as `~/memory/task-memory-bank`.
 - React to markdown-oriented files: `.md`, `.mdx`, and optionally `.txt`.
 - Ignore noisy paths such as `.git`, `node_modules`, `.DS_Store`, temporary files, swap files, and editor backup files.
 - Debounce bursts of file events.
@@ -41,21 +41,23 @@ Use a small declarative config to record tracked qmd collections:
 ```yaml
 collections:
   task-memory-bank:
-    path: ~/github/task-memory-bank
+    path: ~/memory/task-memory-bank
     mode: recursive
 
-  mb-candidate-profile-hub:
-    path: ~/github/task-memory-bank/projects/candidate_profile_hub
+  mb-example-project:
+    path: ~/memory/task-memory-bank/projects/example_project
     mode: recursive
-    context: candidate_profile_hub
+    context: example_project
 
-  mb-inference-poc:
-    path: ~/github/task-memory-bank/projects/inference-poc
+  mb-another-project:
+    path: ~/memory/task-memory-bank/projects/another-project
     mode: recursive
-    context: inference-poc
+    context: another-project
 ```
 
 The first implementation can use this only to find watch roots and affected collection names. If qmd later supports collection-scoped update/embed commands, the same config can drive narrower reindexing.
+
+Each project collection should also carry its own `.memory-bank/collection.yaml` manifest with `path: .`. The root config is for cross-project lookup and watcher routing; the project-local manifest is for collection-local metadata that can travel with the project memory and be indexed when qmd includes YAML files.
 
 ## Memory-Efficient Runtime Model
 
@@ -116,8 +118,8 @@ qmd embed
 If qmd supports scoped collection maintenance later, prefer affected collections:
 
 ```bash
-qmd update --collection mb-candidate-profile-hub
-qmd embed --collection mb-candidate-profile-hub
+qmd update --collection mb-example-project
+qmd embed --collection mb-example-project
 ```
 
 ## CLI Shape

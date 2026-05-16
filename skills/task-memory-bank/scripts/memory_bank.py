@@ -115,6 +115,25 @@ def write_collections(path: Path, collections: dict[str, dict[str, str]]) -> Non
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def write_project_collection_manifest(
+    pdir: Path, project: str, cname: str, repo: str
+) -> None:
+    manifest = pdir / ".memory-bank" / "collection.yaml"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        f"""collection:
+  name: {cname}
+  kind: project
+  project: {project}
+  repo: {repo}
+  context: {project}
+  path: .
+  mode: recursive
+""",
+        encoding="utf-8",
+    )
+
+
 def init_root(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     write_new(
@@ -270,6 +289,7 @@ qmd query -c {cname} "current active work for {title}"
 """,
     )
     upsert_collection(root, project, pdir, cname, repo_text)
+    write_project_collection_manifest(pdir, project, cname, repo_text)
 
     print(f"Initialized project memory: {pdir}")
     print(f"Suggested qmd commands:")
@@ -328,6 +348,7 @@ def resolve_project(args: argparse.Namespace) -> None:
         "repo": repo,
         "context": fields.get("context", ""),
         "read_first": [
+            str(Path(fields.get("path", "")) / ".memory-bank" / "collection.yaml"),
             str(Path(fields.get("path", "")) / "README.md"),
             str(Path(fields.get("path", "")) / "active.md"),
         ],

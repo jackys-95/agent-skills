@@ -15,15 +15,15 @@ Examples:
 
 ```text
 task-memory-bank
-mb-candidate-profile-hub
-mb-inference-poc
+mb-example-project
+mb-another-project
 ```
 
 Preserve a human/project context name separately when useful:
 
 ```text
-candidate_profile_hub
-inference-poc
+example_project
+another-project
 ```
 
 ## Repo Resolution
@@ -32,39 +32,41 @@ When an agent starts inside a git repo, resolve the repo to the qmd collection b
 
 ```bash
 repo="$(git rev-parse --show-toplevel)"
-python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/github/task-memory-bank --repo "$repo" --json
+python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$repo" --json
 ```
 
 The command returns:
 
 ```json
 {
-  "project": "candidate_profile_hub",
-  "collection": "mb-candidate-profile-hub",
-  "memory_path": "/Users/jacky/github/task-memory-bank/projects/candidate_profile_hub",
-  "repo": "/Users/jacky/github/candidate-profile-hub",
-  "context": "candidate_profile_hub",
+  "project": "example_project",
+  "collection": "mb-example-project",
+  "memory_path": "/Users/example/memory/task-memory-bank/projects/example_project",
+  "repo": "/Users/example/work/example-project",
+  "context": "example_project",
   "read_first": [
-    "/Users/jacky/github/task-memory-bank/projects/candidate_profile_hub/README.md",
-    "/Users/jacky/github/task-memory-bank/projects/candidate_profile_hub/active.md"
+    "/Users/example/memory/task-memory-bank/projects/example_project/README.md",
+    "/Users/example/memory/task-memory-bank/projects/example_project/active.md"
   ]
 }
 ```
 
 Use `collection` for qmd searches. Read `read_first` before loading other memory files.
 
+The root `.memory-bank/collections.yaml` exists for cross-project lookup. Each project collection also carries `projects/<project>/.memory-bank/collection.yaml`, with `path: .`, so collection metadata lives inside the collection and can be indexed when qmd includes YAML files.
+
 ## Setup Commands
 
 ```bash
-qmd collection add ~/github/task-memory-bank --name task-memory-bank
-qmd collection add ~/github/task-memory-bank/projects/candidate_profile_hub --name mb-candidate-profile-hub
+qmd collection add ~/memory/task-memory-bank --name task-memory-bank
+qmd collection add ~/memory/task-memory-bank/projects/example_project --name mb-example-project
 qmd embed
 ```
 
 If using qmd contexts:
 
 ```bash
-qmd context add candidate_profile_hub ~/github/task-memory-bank/projects/candidate_profile_hub/README.md
+qmd context add example_project ~/memory/task-memory-bank/projects/example_project/README.md
 ```
 
 ## Integration Modes
@@ -82,10 +84,10 @@ Use qmd MCP for retrieval when available:
 ```json
 {
   "searches": [
-    { "type": "lex", "query": "TASK-0042 empty avatar" },
-    { "type": "vec", "query": "what context is needed to resume the empty avatar task" }
+    { "type": "lex", "query": "TASK-0042 saved filter state" },
+    { "type": "vec", "query": "what context is needed to resume the saved filter state task" }
   ],
-  "collections": ["mb-candidate-profile-hub"],
+  "collections": ["mb-example-project"],
   "limit": 10
 }
 ```
@@ -93,9 +95,9 @@ Use qmd MCP for retrieval when available:
 Use CLI as the portable fallback. Prefer structured or JSON-friendly commands when scripting:
 
 ```bash
-qmd query -c mb-candidate-profile-hub --json $'lex: TASK-0042 empty avatar\nvec: what context is needed to resume the empty avatar task'
-qmd get projects/candidate_profile_hub/work/tasks/TASK-0042-fix-empty-avatar/active.md
-qmd multi-get "projects/candidate_profile_hub/overviews/*.md" -l 80
+qmd query -c mb-example-project --json $'lex: TASK-0042 saved filter state\nvec: what context is needed to resume the saved filter state task'
+qmd get projects/example_project/work/tasks/TASK-0042-fix-saved-filter-state/active.md
+qmd multi-get "projects/example_project/overviews/*.md" -l 80
 ```
 
 Reserve the qmd SDK for a future memory-bank service, watcher, or richer doctor command. Do not require it for normal skill workflows.
