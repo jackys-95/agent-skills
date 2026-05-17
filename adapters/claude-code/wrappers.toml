@@ -1,0 +1,58 @@
+canonical_skill = "task-memory-bank"
+canonical_skill_source = "skills/task-memory-bank"
+
+[[wrappers]]
+name = "memory-init-project"
+workflow = "memory.init-project"
+description = "Initialize a project in the qmd-backed task memory bank."
+argument_hint = "[memory-root] [project] [repo]"
+body = "Use the shared script for deterministic scaffolding. Expected inputs: memory root, project name, repository path. Ask only for missing required inputs."
+
+[[wrappers]]
+name = "memory-new-work"
+workflow = "memory.new-work"
+description = "Create an epic, story, task, or spike in the qmd-backed task memory bank."
+argument_hint = "[memory-root] [project] [type] [title]"
+body = "Use the shared script to create the work item. Expected inputs: memory root, project name, work type, title. Work type is `epic`, `story`, `task`, or `spike`. Ask only for missing required inputs."
+
+[[wrappers]]
+name = "memory-resume"
+workflow = "memory.resume"
+description = "Resume a qmd-backed task memory bank project or work item."
+argument_hint = "[memory-root] [project-or-repo] [work-id]"
+body = "Resolve the project, read entrypoint files first, and use qmd only for targeted supporting context. Summarize objective, current state, next action, and missing context before making changes."
+
+[[wrappers]]
+name = "memory-update"
+workflow = "memory.update"
+description = "Append history and refresh active context for a task memory bank work item."
+argument_hint = "[work-path] [summary]"
+body = "Append history, rewrite `active.md` as compact current state, and reindex qmd when the watcher is not known to be running. Expected inputs: work item path and session summary. Ask only for missing required inputs."
+
+[[wrappers]]
+name = "memory-branch"
+workflow = "memory.branch"
+description = "Create an attempt branch inside a task memory bank work item."
+argument_hint = "[work-path] [attempt-name] [reason]"
+body = "Use attempts only for meaningfully divergent plans or implementations. Expected inputs: work item path, attempt name, and reason. Ask only for missing required inputs."
+
+[[wrappers]]
+name = "memory-handoff"
+workflow = "memory.handoff"
+description = "Write a concise handoff for a task memory bank work item."
+argument_hint = "[work-path]"
+body = "Write a concise handoff into history, compact `active.md`, and reindex qmd when the watcher is not known to be running. Expected input: work item path. Ask only if the active work item cannot be inferred."
+
+[[wrappers]]
+name = "memory-reindex"
+workflow = "memory.reindex"
+description = "Reindex qmd after task memory bank markdown changes."
+argument_hint = "[optional-memory-root-or-project]"
+body = "Run the shared reindex flow, preferring collection-scoped qmd commands if available and falling back to `qmd update` and `qmd embed`. Do not modify memory markdown unless the user explicitly asks for repair."
+
+[[wrappers]]
+name = "memory-doctor"
+workflow = "memory.doctor"
+description = "Check task memory bank structure and qmd health."
+argument_hint = "[memory-root]"
+body = "Check memory-bank structure, repo mappings, qmd availability, and permission assumptions. Expected input: memory root. Ask only if it cannot be inferred. Do not repair files unless the user explicitly asks for repairs."

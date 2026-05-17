@@ -27,6 +27,23 @@ This is a local Codex/agent convention, not a cross-agent standard. Keep
 canonical skill content in this repository, then adapt or copy it into each
 agent's native skill or command location.
 
+## Install For Claude Code
+
+This repository includes Claude Code adapter source under:
+
+```text
+adapters/claude-code/
+```
+
+Install the canonical skill plus generated `/memory-*` wrappers with:
+
+```bash
+python3 scripts/install_claude_code.py
+```
+
+The installer copies `skills/task-memory-bank` and renders wrapper skills from
+the adapter manifest. The core skill remains the source of truth.
+
 ## Notes
 
 - [Task memory bank adapter notes](docs/task-memory-bank-adapters/README.md)
