@@ -1,0 +1,3 @@
+hook test — if the hook fired, Zed opened this file and CC blocked until save (attempt 7)
+atest
+assasa

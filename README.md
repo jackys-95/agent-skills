@@ -2,6 +2,10 @@
 
 A set of reusable agent skills and workflow notes.
 
+## Platform Support
+
+macOS is the primary supported platform. Linux support is planned but not yet implemented. For Zed users, Windows is out of scope until Zed ships a Windows release.
+
 ## Skills
 
 - [task-memory-bank](skills/task-memory-bank/SKILL.md): qmd-backed project/task memory bank workflows.
