@@ -1,0 +1,14 @@
+---
+name: {{name}}
+description: {{description}}
+disable-model-invocation: true
+argument-hint: "{{argument_hint}}"
+---
+
+<!-- Generated from adapters/claude-code. Do not edit the installed copy by hand. -->
+
+Run canonical task-memory-bank workflow `{{workflow}}` for $ARGUMENTS.
+
+First read and follow `{{canonical_skill_path}}`. {{body}}
+
+Do not create a Claude-specific memory format. If workflow behavior needs to change, update the canonical task-memory-bank skill, its references, or `memory_bank.py` first.
