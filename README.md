@@ -12,13 +12,12 @@ macOS is the primary supported platform. Linux support is planned but not yet im
 
 ## Install For Codex
 
-This repository is the source of truth for authored skills. To make a skill
-available to Codex locally, install it into the shared local agent skills
-directory:
+This repository is the source of truth for authored skills. For the Codex app,
+install the composed Codex app variant instead of copying the source skill
+verbatim:
 
 ```bash
-mkdir -p ~/.agents/skills/task-memory-bank
-cp -R skills/task-memory-bank/. ~/.agents/skills/task-memory-bank/
+python3 skills/task-memory-bank/scripts/install.py codex-app --clean
 ```
 
 Codex discovers installed skills from:
@@ -27,9 +26,14 @@ Codex discovers installed skills from:
 ~/.agents/skills/<skill-name>/SKILL.md
 ```
 
+The installer writes a Codex-app-specific `SKILL.md` by composing the portable
+base skill with the Codex app adapter appendix. This keeps the repository's
+canonical skill content compact while still giving Codex app users the local
+sandbox and review-pane instructions they need.
+
 This is a local Codex/agent convention, not a cross-agent standard. Keep
-canonical skill content in this repository, then adapt or copy it into each
-agent's native skill or command location.
+canonical skill content in this repository, then install an adapter-specific
+variant into each agent's native skill or command location.
 
 ## Install For Claude Code
 

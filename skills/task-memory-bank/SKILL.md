@@ -16,7 +16,7 @@ Use a qmd-backed markdown memory bank to keep project and work-item context slim
 - Treat `active.md` as current resumable state, not historical record.
 - Append session history instead of bloating active context.
 - Create designs, specs, decisions, and attempts only when the work warrants them.
-- Reindex qmd after structured writes when the watcher is not known to be running.
+- Reindex through `scripts/memory_bank.py reindex` after structured writes when the watcher is not known to be running. Do not call raw qmd maintenance commands from the skill workflow unless the script is missing or cannot express the operation.
 
 ## Start Here
 
@@ -94,9 +94,9 @@ Use work item types by intent:
 
 See [references/workflows.md](references/workflows.md) for resume, update, handoff, and branching workflows.
 
-## qmd Usage
+## Retrieval And Indexing
 
-Before searching qmd from a repo, resolve the repo to its memory project:
+Before retrieving memory from a repo, resolve the repo to its memory project:
 
 ```bash
 python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
@@ -123,13 +123,12 @@ qmd get projects/example_project/work/tasks/TASK-0042-fix-saved-filter-state/act
 qmd multi-get "projects/example_project/overviews/*.md" -l 80
 ```
 
-After memory-bank writes, reindex through the qmd skill if available, or run:
+After memory-bank writes, reindex through this skill's script:
 
 ```bash
-qmd update
-qmd embed
+python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py reindex --embed-optional
 ```
 
-If qmd is unavailable or unhealthy, still update markdown files and tell the user reindexing could not be completed.
+Use `--embed-optional` when lexical freshness matters most and local embedding can fail because of model/runtime issues. If qmd is unavailable or unhealthy, still update markdown files and tell the user reindexing could not be completed.
 
 See [references/qmd.md](references/qmd.md) for collection naming, integration modes, and search habits.
