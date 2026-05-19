@@ -110,24 +110,17 @@ When resuming work, ask qmd for targeted supporting context:
 
 ```text
 collection: mb-example-project
+intent: resume the saved filter state task
 lex: TASK-0042 saved filter state
 vec: what context is needed to resume the saved filter state task
+hyde: The active.md for TASK-0042 describes the current state, next actions, and any open questions needed to continue.
 known paths: projects/example_project/work/tasks/TASK-0042-fix-saved-filter-state/active.md
-```
-
-Fallback CLI pattern when no qmd skill or MCP tools are available:
-
-```bash
-qmd query -c mb-example-project $'lex: TASK-0042 saved filter state\nvec: what context is needed to resume the saved filter state task'
-qmd get projects/example_project/work/tasks/TASK-0042-fix-saved-filter-state/active.md
-qmd multi-get "projects/example_project/overviews/*.md" -l 80
 ```
 
 After memory-bank writes, reindex through the qmd skill if available, or run:
 
 ```bash
-qmd update
-qmd embed
+python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py reindex
 ```
 
 If qmd is unavailable or unhealthy, still update markdown files and tell the user reindexing could not be completed.

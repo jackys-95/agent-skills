@@ -85,17 +85,19 @@ Use qmd MCP for retrieval when available:
 {
   "searches": [
     { "type": "lex", "query": "TASK-0042 saved filter state" },
-    { "type": "vec", "query": "what context is needed to resume the saved filter state task" }
+    { "type": "vec", "query": "what context is needed to resume the saved filter state task" },
+    { "type": "hyde", "query": "The active.md for the saved filter state task describes current progress, next steps, and any open blockers." }
   ],
+  "intent": "Resume the saved filter state task — load current state and next actions.",
   "collections": ["mb-example-project"],
   "limit": 10
 }
 ```
 
-Use CLI as the portable fallback. Prefer structured or JSON-friendly commands when scripting:
+Use CLI as the portable fallback:
 
 ```bash
-qmd query -c mb-example-project --json $'lex: TASK-0042 saved filter state\nvec: what context is needed to resume the saved filter state task'
+qmd query -c mb-example-project --json $'intent: resume saved filter state task\nlex: TASK-0042 saved filter state\nvec: what context is needed to resume the saved filter state task'
 qmd get projects/example_project/work/tasks/TASK-0042-fix-saved-filter-state/active.md
 qmd multi-get "projects/example_project/overviews/*.md" -l 80
 ```
@@ -119,8 +121,7 @@ Use lexical search for ids, filenames, and exact terms. Use vector search for co
 After structured writes:
 
 ```bash
-qmd update
-qmd embed
+python3 <skill-dir>/scripts/memory_bank.py reindex
 ```
 
 If that fails, keep the markdown writes and report the qmd failure.
