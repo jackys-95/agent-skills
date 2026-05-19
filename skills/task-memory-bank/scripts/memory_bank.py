@@ -245,7 +245,10 @@ setup
 
 ## Resume Query
 
-qmd query -c {cname} "current active work for {title}"
+collection: {cname}
+intent: resume current active work for {title}
+lex: {slugify(title)} active work
+vec: what context is needed to resume current work in {title}
 
 ## Last Updated
 
@@ -471,7 +474,11 @@ main
 
 ## Resume Query
 
-qmd query -c {collection_name(project)} $'lex: {wid} {slug}\\nvec: what context is needed to resume {args.title}'
+collection: {collection_name(project)}
+intent: resume {args.title}
+lex: {wid} {slug}
+vec: what context is needed to resume {args.title}
+hyde: The active.md for {args.title} describes the current state, next actions, and any decisions or blockers relevant to continuing this work.
 
 ## Last Updated
 

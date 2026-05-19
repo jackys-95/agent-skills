@@ -13,8 +13,12 @@ Use this reference for memory-bank operations beyond initial scaffolding.
 
 Good resume query:
 
-```bash
-qmd query -c mb-<project> $'lex: <id> <key terms>\nvec: what context is needed to resume <work item>'
+```text
+collection: mb-<project>
+intent: resume <work item title>
+lex: <id> <key terms>
+vec: what context is needed to resume <work item>
+hyde: The active.md for <work item> describes the current state, next actions, and any open questions needed to continue.
 ```
 
 ## New Work
@@ -39,7 +43,7 @@ At the end of a meaningful session:
 2. Rewrite `active.md` to reflect the current resumable state.
 3. Update checklist/progress in the work item `README.md` if needed.
 4. Link any new design/spec/decision docs.
-5. Run `qmd update` and `qmd embed` if the watcher is not known to be active.
+5. Run `python3 <skill-dir>/scripts/memory_bank.py reindex` if the watcher is not known to be active.
 
 History should be append-only. Active context should be compact and replaceable.
 
@@ -94,4 +98,4 @@ When work is done:
 1. Set status to `done`, `shipped`, `cancelled`, or `superseded`.
 2. Move remaining useful context out of `active.md` into README/history/decisions.
 3. Leave `active.md` as a short terminal state summary.
-4. Reindex qmd.
+4. Run `python3 <skill-dir>/scripts/memory_bank.py reindex`.
