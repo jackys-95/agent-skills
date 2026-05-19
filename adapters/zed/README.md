@@ -6,6 +6,7 @@ Opens files in Zed whenever Claude Code edits or writes them, then blocks CC unt
 
 - macOS
 - [Zed](https://zed.dev) with the `zed` CLI in PATH (`zed --version` to verify)
+- [fswatch](https://github.com/emcrisostomo/fswatch) (`brew install fswatch`)
 
 ## Install
 
@@ -39,10 +40,10 @@ Without this, the hook is a no-op — CC running in any other context is unaffec
 
 1. CC edits or writes a file.
 2. The `PostToolUse` hook fires with the file path.
-3. The hook opens the file in Zed via `zed --wait <path>`.
-4. CC blocks until you close the buffer.
-5. Close without saving → CC continues with its original write.
-6. Save then close (Cmd+S, then close tab) → CC continues with your version.
+3. The hook opens the file in Zed and races `fswatch` (save event) against `zed --wait` (close event).
+4. CC blocks until whichever fires first.
+5. **Cmd+S** → CC continues immediately with your saved version.
+6. **Close tab without saving** → CC continues with its original write.
 
 ## UX note
 
