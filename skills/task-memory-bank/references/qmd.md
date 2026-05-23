@@ -110,6 +110,8 @@ Use lexical search for ids, filenames, and exact terms. Use vector search for co
 
 ## Retrieval Discipline
 
+**Never use filesystem tools to explore or search the memory bank.** The qmd interface is canonical: it scopes by collection, leverages embeddings, and avoids loading whole directory trees. Filesystem tools load raw files without collection context and encourage unbounded tree reads.
+
 - Prefer `qmd get` for known files.
 - Prefer `qmd multi-get` for a small set of entrypoints.
 - Prefer `qmd query` for discovery.

@@ -12,7 +12,7 @@ The PreToolUse hook prints a `[Zed]` line containing the snapshot path before CC
 
 ## Guidance
 
-- After every Write or Edit, output exactly: `reply 'r' to revert` — hook stdout is not shown in the Zed panel so this is the only way the user knows the option exists
+- After every Write or Edit, output `reply 'r' to revert` as a **standalone line** in that same response — one line per file written, even when chaining tool calls. Hook stdout is not shown in the Zed panel; this line is the only way the user knows the option exists.
 - Do not narrate or summarize the diff content — the user sees it in Zed
 - Do not re-read a file after writing unless the user replies `r` and you have reverted it
 - The user approves by silence — do not ask for confirmation if they haven't replied

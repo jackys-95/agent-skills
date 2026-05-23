@@ -12,3 +12,7 @@ Run canonical task-memory-bank workflow `{{workflow}}` for $ARGUMENTS.
 First read and follow `{{canonical_skill_path}}`. {{body}}
 
 Do not create a Claude-specific memory format. If workflow behavior needs to change, update the canonical task-memory-bank skill, its references, or `memory_bank.py` first.
+
+**Filesystem tools in Claude Code:** The `Glob`, `Bash find/ls`, and `Read` tools are filesystem tools — never use them to explore or search the memory bank. Use qmd MCP tools (`query`, `get`, `multi_get`) instead.
+
+**Auto-memory vs task memory bank:** Claude Code's `~/.claude/projects/<hash>/memory/` is for cross-project user preferences and behavioral feedback only — it is loaded on every session across all projects. Skill performance observations, workflow gotchas, and project-specific notes belong in the task memory bank (`scratch.md` or work item files). Do not write task/skill observations into auto-memory; do not write user preference feedback into the task memory bank.
