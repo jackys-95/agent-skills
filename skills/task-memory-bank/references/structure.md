@@ -74,7 +74,7 @@ projects/<project>/
 
 `README.md` is the stable entrypoint: project name, repo path, purpose, qmd collection, and where to go next.
 
-`active.md` is the short current-state file an agent can always load before resuming. Keep it under roughly 150 lines.
+`active.md` is the short current-state file an agent can always load before resuming. Keep it under roughly 150 lines. It must not contain session summaries, outcomes, or historical detail — those go in history files first.
 
 `overviews/product.md` routes to product surfaces, user workflows, and feature docs.
 
@@ -168,8 +168,24 @@ Suggested qmd query.
 
 ## Last Updated
 
-YYYY-MM-DD by agent/user
+[YYYY-MM-DD-session-NNN](history/YYYY-MM-DD-session-NNN.md)
 ```
+
+## Session History File Template
+
+```md
+# Session YYYY-MM-DD-NNN
+
+## What Happened
+
+Narrative recap of the session: what was attempted, what was completed, decisions made, outcomes.
+
+## Previous
+
+[YYYY-MM-DD-session-NNN](YYYY-MM-DD-session-NNN.md)
+```
+
+`active.md` links only to the latest session file. Each session file links to its predecessor. This reverse linked-list lets agents reconstruct history without loading the full chain upfront.
 
 ## Naming
 

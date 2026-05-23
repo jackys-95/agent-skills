@@ -12,9 +12,10 @@ Use a qmd-backed markdown memory bank to keep project and work-item context slim
 - Keep the memory bank outside app repos unless the user asks otherwise.
 - Separate projects by folder and qmd collection/context.
 - Load only entrypoint files first: project `.memory-bank/collection.yaml`, project `README.md`, project `active.md`, work item `README.md`, and work item `active.md`.
+- **Never use filesystem tools to explore or search the memory bank.** Use qmd MCP tools (`query`, `get`, `multi_get`) or the qmd CLI. Filesystem tools miss embeddings, bypass collection scoping, and encourage loading entire trees.
 - Use qmd search for supporting context instead of reading whole trees.
-- Treat `active.md` as current resumable state, not historical record.
-- Append session history instead of bloating active context.
+- Treat `active.md` as current resumable state, not historical record. It must not contain session summaries, outcomes, or historical detail.
+- **Write history first, then update active.md.** Session detail goes in `history/YYYY-MM-DD-session-NNN.md` before `active.md` is rewritten. `active.md` links only to the latest session file; each session file links to its predecessor (reverse linked-list).
 - Create designs, specs, decisions, and attempts only when the work warrants them.
 - Reindex qmd after structured writes when the watcher is not known to be running.
 
