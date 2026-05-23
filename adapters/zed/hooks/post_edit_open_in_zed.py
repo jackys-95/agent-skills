@@ -1,34 +1,9 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import os
 import subprocess
 import sys
-import threading
-
-
-def _race(path):
-    """Block until file is saved (fswatch) or buffer is closed (zed --wait)."""
-    done = threading.Event()
-    procs = []
-
-    def run(cmd):
-        p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        procs.append(p)
-        p.wait()
-        done.set()
-
-    threads = [
-        threading.Thread(target=run, args=(["fswatch", "-1", path],), daemon=True),
-        threading.Thread(target=run, args=(["zed", "--wait", path],), daemon=True),
-    ]
-    for t in threads:
-        t.start()
-    done.wait()
-    for p in procs:
-        try:
-            p.kill()
-        except Exception:
-            pass
 
 
 def main():
@@ -38,10 +13,34 @@ def main():
         event = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         sys.exit(0)
+
     file_path = event.get("tool_input", {}).get("file_path", "")
     if not file_path:
         sys.exit(0)
-    _race(file_path)
+
+    path_hash = hashlib.sha256(file_path.encode()).hexdigest()[:16]
+    pointer = f"/tmp/cc_pre_ptr_{path_hash}"
+    snapshot = open(pointer).read().strip() if os.path.isfile(pointer) else ""
+
+    if snapshot and os.path.isfile(snapshot):
+        subprocess.Popen(
+            ["zed", "--diff", snapshot, file_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    else:
+        subprocess.Popen(
+            ["zed", file_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    subprocess.run(
+        ["osascript", "-e", 'tell application "Zed" to activate'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    # Snapshot left in /tmp — PreToolUse overwrites it on the next edit to the same file
 
 
 if __name__ == "__main__":

@@ -1,12 +1,11 @@
 # Zed Adapter
 
-Opens files in Zed whenever Claude Code edits or writes them, then blocks CC until you close the buffer — so CC continues with your changes (or without, if you close without saving).
+Opens a diff view in Zed whenever Claude Code edits or writes a file. CC continues immediately — review is non-blocking and you can revert via the CC panel if needed.
 
 ## Requirements
 
 - macOS
 - [Zed](https://zed.dev) with the `zed` CLI in PATH (`zed --version` to verify)
-- [fswatch](https://github.com/emcrisostomo/fswatch) (`brew install fswatch`)
 
 ## Install
 
@@ -14,13 +13,12 @@ Opens files in Zed whenever Claude Code edits or writes them, then blocks CC unt
 python3 adapters/zed/install.py
 ```
 
-This copies the hook script into `~/.claude/hooks/` and wires it into `~/.claude/settings.json` as a global `PostToolUse` hook.
+This copies both hook scripts into `~/.claude/hooks/`, registers them as PreToolUse/PostToolUse hooks in `~/.claude/settings.json`, sets `defaultMode: acceptEdits`, and appends the adapter instructions to `~/.claude/CLAUDE.md`.
 
 ## Enable inside Zed
 
-The hook is guarded by `CC_ZED_HOOK=1` so it only fires when CC runs inside Zed. CC runs via Zed's **agent panel** (not the terminal), so the env var must be set under `agent_servers`:
+The hooks are guarded by `CC_ZED_HOOK=1` so they only fire when CC runs inside Zed. Set it under `agent_servers` in `~/.config/zed/settings.json`:
 
-`~/.config/zed/settings.json`:
 ```json
 {
   "agent_servers": {
@@ -34,17 +32,18 @@ The hook is guarded by `CC_ZED_HOOK=1` so it only fires when CC runs inside Zed.
 }
 ```
 
-Without this, the hook is a no-op — CC running in any other context is unaffected.
+Without this, the hooks are no-ops — CC running in any other context is unaffected.
 
 ## How it works
 
-1. CC edits or writes a file.
-2. The `PostToolUse` hook fires with the file path.
-3. The hook opens the file in Zed and races `fswatch` (save event) against `zed --wait` (close event).
-4. CC blocks until whichever fires first.
-5. **Cmd+S** → CC continues immediately with your saved version.
-6. **Close tab without saving** → CC continues with its original write.
+1. CC edits or writes a file (`acceptEdits` auto-approves the write).
+2. The `PreToolUse` hook snapshots the original file to `/tmp/cc_pre_<hash>` and prints a `[Zed]` line with the snapshot path.
+3. CC writes the file.
+4. The `PostToolUse` hook opens `zed --diff <snapshot> <file>` non-blocking and brings Zed to the front.
+5. You review the diff in Zed at your own pace.
 
-## UX note
+## UX
 
-This gives you an edit-in-place flow: review what CC wrote, tweak directly in Zed, close the tab, and CC resumes with your changes — no back-and-forth conversation round trip required.
+- **Accept** — do nothing, CC has already moved on.
+- **Edit** — make changes in Zed and Cmd+S to save.
+- **Revert** — reply `r` in the CC panel. CC reads the snapshot path from the `[Zed]` line and writes it back.
