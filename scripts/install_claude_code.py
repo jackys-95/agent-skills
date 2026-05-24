@@ -26,6 +26,16 @@ def load_manifest(path: Path) -> dict:
         return tomllib.load(handle)
 
 
+def copy_skill(skill_type: str, source: Path, target: Path, dry_run: bool) -> None:
+    print(f"Install {skill_type} skill: {source} -> {target}")
+    if dry_run:
+        return
+    try:
+        shutil.copytree(source, target, dirs_exist_ok=True, copy_function=shutil.copy)
+    except FileNotFoundError:
+        raise SystemExit(f"Missing {skill_type} skill source: {source}")
+
+
 def render(template: str, values: dict[str, str]) -> str:
     rendered = template
     for key, value in values.items():
@@ -33,13 +43,19 @@ def render(template: str, values: dict[str, str]) -> str:
     return rendered.rstrip() + "\n"
 
 
-def copy_canonical_skill(source: Path, target: Path, dry_run: bool) -> None:
-    print(f"Install canonical skill: {source} -> {target}")
-    if dry_run:
-        return
-    if not source.exists():
-        raise SystemExit(f"Missing canonical skill source: {source}")
-    shutil.copytree(source, target, dirs_exist_ok=True)
+def install_canonical_skills(
+    manifest: dict,
+    template: str,
+    target_root: Path,
+    dry_run: bool,
+) -> None:
+    canonical_name = manifest["canonical_skill"]
+    canonical_source = REPO_ROOT / manifest["canonical_skill_source"]
+    copy_skill("canonical", canonical_source, target_root / canonical_name, dry_run)
+
+    canonical_skill_path = f"{canonical_name}/SKILL.md"
+    for wrapper in manifest["wrappers"]:
+        install_wrapper(wrapper, template, target_root, canonical_skill_path, dry_run)
 
 
 def install_wrapper(
@@ -67,6 +83,11 @@ def install_wrapper(
     target.write_text(content, encoding="utf-8")
 
 
+def install_generic_skills(target_root: Path, dry_run: bool) -> None:
+    generic_qmd_skill = REPO_ROOT / "skills/qmd"
+    copy_skill("qmd", generic_qmd_skill, target_root / "qmd", dry_run)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -90,13 +111,8 @@ def main() -> int:
         encoding="utf-8"
     )
 
-    canonical_name = manifest["canonical_skill"]
-    canonical_source = REPO_ROOT / manifest["canonical_skill_source"]
-    copy_canonical_skill(canonical_source, target_root / canonical_name, args.dry_run)
-
-    canonical_skill_path = f"{canonical_name}/SKILL.md"
-    for wrapper in manifest["wrappers"]:
-        install_wrapper(wrapper, template, target_root, canonical_skill_path, args.dry_run)
+    install_canonical_skills(manifest, template, target_root, args.dry_run)
+    install_generic_skills(target_root, args.dry_run)
 
     return 0
 
