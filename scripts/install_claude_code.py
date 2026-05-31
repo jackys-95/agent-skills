@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -83,6 +84,32 @@ def install_wrapper(
     target.write_text(content, encoding="utf-8")
 
 
+def install_claude_md(source: Path, target: Path, dry_run: bool) -> None:
+    """Upsert tagged blocks from source into target, preserving surrounding content."""
+    source_text = source.read_text(encoding="utf-8")
+    block_re = re.compile(r"(<!-- (\S+) -->.*?<!-- \2 -->)", re.DOTALL)
+    blocks = block_re.findall(source_text)
+    if not blocks:
+        return
+
+    target_text = target.read_text(encoding="utf-8") if target.exists() else ""
+    for block_content, tag in blocks:
+        existing = re.compile(
+            r"<!-- " + re.escape(tag) + r" -->.*?<!-- " + re.escape(tag) + r" -->",
+            re.DOTALL,
+        )
+        if existing.search(target_text):
+            target_text = existing.sub(block_content, target_text)
+        else:
+            target_text = target_text.rstrip("\n") + "\n\n" + block_content + "\n"
+
+    print(f"Install CLAUDE.md blocks: {target}")
+    if dry_run:
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(target_text, encoding="utf-8")
+
+
 def install_generic_skills(target_root: Path, dry_run: bool) -> None:
     generic_qmd_skill = REPO_ROOT / "skills/qmd"
     copy_skill("qmd", generic_qmd_skill, target_root / "qmd", dry_run)
@@ -113,6 +140,11 @@ def main() -> int:
 
     install_canonical_skills(manifest, template, target_root, args.dry_run)
     install_generic_skills(target_root, args.dry_run)
+    install_claude_md(
+        ADAPTER_DIR / "CLAUDE.md",
+        target_root.parent / "CLAUDE.md",
+        args.dry_run,
+    )
 
     return 0
 
