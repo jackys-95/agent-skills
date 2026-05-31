@@ -48,6 +48,23 @@ python3 scripts/install_claude_code.py
 The installer copies `skills/task-memory-bank` and renders wrapper skills from
 the adapter manifest. The core skill remains the source of truth.
 
+## Zed Integration
+
+The skill installer (`scripts/install_claude_code.py`) only installs skills — it does not configure how Zed connects to Claude Code.
+
+### Connecting Zed to Claude Code
+
+**Terminal Thread — recommended for Claude Pro/Max subscribers:**
+Runs CC inside a Zed terminal pane and uses your Claude subscription directly.
+
+1. In the agent panel, click **+** → **Terminal**
+2. Type `claude` and press Enter
+
+`CC_ZED_HOOK=1` is set in `terminal.env` in `~/.config/zed/settings.json` — hooks (snapshot, diff view, revert) work automatically.
+
+**ACP external agent:**
+Configured via `agent_servers."claude-acp"` in `~/.config/zed/settings.json`. Starting 2026-06-15, ACP usage is billed at API rates separately from Claude Pro/Max subscriptions. See [Anthropic's subscription changes](https://zed.dev/blog/anthropic-subscription-changes).
+
 ## Notes
 
 - [Task memory bank adapter notes](docs/task-memory-bank-adapters/README.md)
