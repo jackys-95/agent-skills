@@ -55,6 +55,7 @@ task-memory-bank/
         decisions.md
       domains/
       work/
+        index.md
         epics/
         stories/
         tasks/
@@ -105,6 +106,8 @@ python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py resolve-project --root ~/memor
 
 Use the returned `collection`, `memory_path`, and `read_first` files. Do not guess collection names when `.memory-bank/collections.yaml` is available.
 
+**`get` path format:** Search results return paths relative to their collection. Prepend the collection name before calling `get`: `mb-<project>/path/from/search`. Bare paths return "Document not found" with no hint about the missing prefix. Alternatively, use the `docid` (`#abc123`) from search results — docids work without a prefix.
+
 This skill owns the memory-bank workflow: project resolution, entrypoint files, active context, history, and handoff shape. For qmd retrieval mechanics, use the dedicated qmd skill or qmd MCP tools when available. Let that integration choose MCP or CLI; pass it the resolved collection, known paths, and search intent.
 
 When resuming work, ask qmd for targeted supporting context:
@@ -126,4 +129,4 @@ python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py reindex
 
 If qmd is unavailable or unhealthy, still update markdown files and tell the user reindexing could not be completed.
 
-See [references/qmd.md](references/qmd.md) for collection naming, integration modes, and search habits.
+See [references/qmd.md](references/qmd.md) for collection naming, repo resolution, reindex routing, and diagnostics.
