@@ -66,6 +66,7 @@ projects/<project>/
     decisions.md
   domains/
   work/
+    index.md
     epics/
     stories/
     tasks/
@@ -81,6 +82,8 @@ projects/<project>/
 `overviews/architecture.md` routes to domain architecture docs and cross-domain flows.
 
 `overviews/delivery.md` routes to milestones, release plans, active epics, testing strategy, and deployment notes.
+
+`work/index.md` is a flat ordered table of every work item (ID, type, status, title, date). It is the first place an agent should look when asking "what work exists?" — one `get` is faster than a broad keyword search across session history. Add a row when a work item is created; update the status field when it closes. Keep it append-only for new rows; update the status field in place for existing rows.
 
 `overviews/decisions.md` routes to decision logs. Prefer linking to domain/work-item decisions instead of duplicating them.
 

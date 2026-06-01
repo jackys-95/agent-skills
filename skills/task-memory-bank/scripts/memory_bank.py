@@ -143,6 +143,14 @@ def init_root(root: Path) -> None:
 ## Projects
 
 Add project links here as memory-bank projects are initialized.
+
+## Scripts
+
+Memory-bank scripts are installed with the task-memory-bank skill:
+
+```bash
+python3 ~/.claude/skills/task-memory-bank/scripts/memory_bank.py --help
+```
 """,
     )
     write_new(
@@ -543,11 +551,28 @@ def append_history(args: argparse.Namespace) -> None:
 
 
 def reindex(args: argparse.Namespace) -> None:
-    for command in (["qmd", "update"], ["qmd", "embed"]):
-        print("+ " + " ".join(command))
-        result = subprocess.run(command, check=False)
-        if result.returncode != 0:
-            raise SystemExit(result.returncode)
+    collection: str | None = None
+    root = getattr(args, "root", None)
+    if root:
+        repo = current_git_root()
+        if repo:
+            data = parse_collections(expand(root) / ".memory-bank" / "collections.yaml")
+            for name, fields in data.items():
+                if fields.get("kind") == "project" and normalize_path(fields.get("repo")) == repo:
+                    collection = name
+                    break
+
+    update_cmd = ["qmd", "update"]
+    print("+ " + " ".join(update_cmd))
+    result = subprocess.run(update_cmd, check=False)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+
+    embed_cmd = ["qmd", "embed"] + (["-c", collection] if collection else [])
+    print("+ " + " ".join(embed_cmd))
+    result = subprocess.run(embed_cmd, check=False)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
 
 
 def doctor(args: argparse.Namespace) -> None:
@@ -591,13 +616,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("init-project", help="Initialize project memory structure")
-    p.add_argument("--root", required=True)
+    p.add_argument("--memory-root", "--root", dest="root", required=True)
     p.add_argument("--project", required=True)
     p.add_argument("--repo")
     p.set_defaults(func=init_project)
 
     p = sub.add_parser("new-work", help="Create an epic/story/task/spike")
-    p.add_argument("--root", required=True)
+    p.add_argument("--memory-root", "--root", dest="root", required=True)
     p.add_argument("--project", required=True)
     p.add_argument("--type", required=True, choices=sorted(WORK_TYPES))
     p.add_argument("--title", required=True)
@@ -606,7 +631,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=new_work)
 
     p = sub.add_parser("resolve-project", help="Resolve current or provided git repo to memory project")
-    p.add_argument("--root", required=True)
+    p.add_argument("--memory-root", "--root", dest="root", required=True)
     p.add_argument("--repo")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=resolve_project)
@@ -623,11 +648,26 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--summary-file")
     p.set_defaults(func=append_history)
 
-    p = sub.add_parser("reindex", help="Run qmd update and qmd embed")
+    p = sub.add_parser(
+        "reindex",
+        help="Run qmd update and qmd embed",
+        description=(
+            "Runs `qmd update` then `qmd embed`. "
+            "With --memory-root and from inside a git repo, resolves the current project "
+            "collection and scopes embed to it (qmd embed -c <collection>). "
+            "Without --memory-root, rebuilds all collections globally. "
+            "Does not accept --project or --repo — project is auto-detected from the git root."
+        ),
+    )
+    p.add_argument(
+        "--memory-root", "--root", dest="root", required=False, default=None,
+        help="Memory bank root (e.g. ~/memory/task-memory-bank). "
+             "When provided, scopes embed to the current git repo's collection.",
+    )
     p.set_defaults(func=reindex)
 
     p = sub.add_parser("doctor", help="Check memory-bank structure and qmd availability")
-    p.add_argument("--root", required=True)
+    p.add_argument("--memory-root", "--root", dest="root", required=True)
     p.set_defaults(func=doctor)
 
     return parser

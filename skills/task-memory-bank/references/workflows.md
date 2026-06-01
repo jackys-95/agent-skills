@@ -37,6 +37,8 @@ history/
 
 Do not create `designs/`, `specs/`, `decisions.md`, or `attempts/` unless the work already needs them.
 
+After scaffolding, add a row to `work/index.md` with the ID, type, status (`open`), title, and creation date. If `work/index.md` does not exist yet, create it with a header row before adding the entry.
+
 ## Update
 
 At the end of a meaningful session, **write history first, then update active.md**:
@@ -57,7 +59,48 @@ History should be append-only. Active context should be compact and replaceable.
 - [ ] `active.md` rewritten to current resumable state only
 - [ ] `## Last Updated` in `active.md` links to the new session file
 - [ ] Work item `README.md` updated if status or progress changed
+- [ ] `work/index.md` updated if a work item was created or its status changed
 - [ ] `reindex` run
+
+## When to Reindex
+
+Reindex only in two situations:
+
+1. **Parallelizing** — another agent or session needs to see your recent memory-bank writes before you're done.
+2. **Substantial progress checkpoint** — you've completed a meaningful chunk of work and want a stable, searchable snapshot.
+
+The end-of-session reindex in the Update checklist covers case 2 for the normal case. Do not reindex after every individual file write mid-session.
+
+**Revert does not require reindex.** Running `revert_zed_snapshot.py` undoes a file-system change but the reverted content was never indexed — the index was correct before the write and is correct again after the revert. Only reindex after a revert if the reverted file was a memory-bank write that already crossed a checkpoint boundary (i.e., you had already reindexed it in this session).
+
+## History Scope
+
+Every work item has a `history/` directory. Use it. Project-level history is for cross-cutting events only.
+
+**Write inside the work item** when the session touched primarily one item:
+
+```text
+work/tasks/TASK-0042-fix-foo/history/YYYY-MM-DD-session-NNN.md
+```
+
+Include: what happened, decisions made, what was tried, blockers, outcomes. This is the canonical record for resuming that item cold.
+
+**Write a project-level session file** (`projects/<project>/history/YYYY-MM-DD-session-NNN.md`) only for:
+
+- Sessions that open or close multiple work items with no single natural home
+- Planning or discovery work that predates any work item
+- Architecture or cross-cutting decisions that don't belong to one item
+
+**Sessions that touch multiple items**: write a task-level entry per item touched; add a one-liner link-out in a project-level file if the cross-item context is worth preserving.
+
+```text
+# Session 2026-05-31-009
+
+- TASK-0020: done — see [TASK-0020/history/2026-05-31-session-009.md](../work/tasks/TASK-0020-.../history/2026-05-31-session-009.md)
+- TASK-0022: done — see [TASK-0022/history/...]
+```
+
+**Rule of thumb**: if someone resuming TASK-0042 cold would want the detail, it belongs in TASK-0042's history, not the project session file. Project session files should be navigational, not authoritative.
 
 ## Branch
 
@@ -110,4 +153,5 @@ When work is done:
 1. Set status to `done`, `shipped`, `cancelled`, or `superseded`.
 2. Move remaining useful context out of `active.md` into README/history/decisions.
 3. Leave `active.md` as a short terminal state summary.
-4. Run `python3 <skill-dir>/scripts/memory_bank.py reindex`.
+4. Update the status field in `work/index.md` for this item.
+5. Run `python3 <skill-dir>/scripts/memory_bank.py reindex`.

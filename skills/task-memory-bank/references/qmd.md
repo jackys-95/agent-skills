@@ -69,61 +69,95 @@ If using qmd contexts:
 qmd context add example_project ~/memory/task-memory-bank/projects/example_project/README.md
 ```
 
-## Integration Modes
+## Integration
 
-Prefer the dedicated qmd skill or qmd MCP tools when the agent has them. The task-memory-bank skill should supply domain-specific inputs, not duplicate transport details:
+When passing search context to qmd (via skill or MCP tool), supply these workflow-owned inputs:
 
-- `collection`: resolved from `.memory-bank/collections.yaml`.
-- `read_first`: entrypoint files to read before broad search.
-- `lex`: work ids, filenames, exact domain terms, branch names, and error strings.
-- `vec`: natural-language resume questions and conceptual context needs.
-- `known paths`: active files, overview files, specs, designs, or decisions already referenced by entrypoints.
+- `collection`: resolved from `.memory-bank/collections.yaml`
+- `read_first`: entrypoint files to read before broad search
+- `lex`: work ids, filenames, exact domain terms, branch names, and error strings
+- `vec`: natural-language resume questions and conceptual context needs
+- `known paths`: active files, overview files, specs, designs, or decisions already referenced by entrypoints
 
-Use qmd MCP for retrieval when available:
-
-```json
-{
-  "searches": [
-    { "type": "lex", "query": "TASK-0042 saved filter state" },
-    { "type": "vec", "query": "what context is needed to resume the saved filter state task" },
-    { "type": "hyde", "query": "The active.md for the saved filter state task describes current progress, next steps, and any open blockers." }
-  ],
-  "intent": "Resume the saved filter state task — load current state and next actions.",
-  "collections": ["mb-example-project"],
-  "limit": 10
-}
-```
-
-Use CLI as the portable fallback:
+For retrieval mechanics — query modes, CLI syntax, MCP call shape — defer to the bundled `qmd` skill:
 
 ```bash
-qmd query -c mb-example-project --json $'intent: resume saved filter state task\nlex: TASK-0042 saved filter state\nvec: what context is needed to resume the saved filter state task'
-qmd get projects/example_project/work/tasks/TASK-0042-fix-saved-filter-state/active.md
-qmd multi-get "projects/example_project/overviews/*.md" -l 80
+qmd skills get qmd
 ```
-
-Reserve the qmd SDK for a future memory-bank service, watcher, or richer doctor command. Do not require it for normal skill workflows.
-
-## Search Pattern
-
-Use lexical search for ids, filenames, and exact terms. Use vector search for conceptual recall. Use both when resuming work. Put the strongest exact query first so qmd fusion weights it highly.
-
-## Retrieval Discipline
-
-**Never use filesystem tools to explore or search the memory bank.** The qmd interface is canonical: it scopes by collection, leverages embeddings, and avoids loading whole directory trees. Filesystem tools load raw files without collection context and encourage unbounded tree reads.
-
-- Prefer `qmd get` for known files.
-- Prefer `qmd multi-get` for a small set of entrypoints.
-- Prefer `qmd query` for discovery.
-- Keep `-l` line limits low when scanning.
-- Load specs/designs only after active context points to them or qmd finds them.
 
 ## Reindex
 
-After structured writes:
+After structured writes, route through the `memory_bank.py` script — do not call `qmd embed` directly:
 
 ```bash
 python3 <skill-dir>/scripts/memory_bank.py reindex
 ```
 
-If that fails, keep the markdown writes and report the qmd failure.
+When run from inside a git repo with `--memory-root`, the script resolves the project collection from `collections.yaml` and calls:
+
+```bash
+qmd embed -c <resolved-collection>
+```
+
+This scopes embedding to the current project and avoids rebuilding unrelated collections. Without `--memory-root`, it falls back to global `qmd embed`. If reindex fails, keep the markdown writes and report the failure.
+
+## Diagnostics
+
+If search results seem stale or embeddings appear out of sync, run:
+
+```bash
+qmd doctor
+```
+
+This checks SQLite versions, embedding fingerprint freshness, and mixed-fingerprint detection. Use it as the first step before manually reindexing.
+
+## qmd Skills
+
+qmd bundles versioned skill instructions for retrieval mechanics. List or fetch them with:
+
+```bash
+qmd skills list
+qmd skills get qmd
+qmd skills path qmd
+```
+
+Install stable discovery stubs to prevent skill staleness after upgrades:
+
+```bash
+qmd skill install qmd
+```
+
+The bundled `qmd` skill covers query modes, CLI syntax, and MCP call shape — not duplicated here.
+
+## Retrieval Discipline
+
+**Never use filesystem tools to explore or search the memory bank.** The qmd interface is canonical: it scopes by collection, leverages embeddings, and avoids loading whole directory trees.
+
+### Path Format for `get`
+
+Search results return paths **relative to their collection**. The `get` tool and CLI require the **collection-prefixed path**:
+
+```text
+<collection>/<path-from-search-result>
+```
+
+Example — if a search result shows:
+
+```text
+path: projects/agent-skills/work/tasks/TASK-0042/README.md
+collection: mb-agent-skills
+```
+
+Call `get` with:
+
+```text
+mb-agent-skills/projects/agent-skills/work/tasks/TASK-0042/README.md
+```
+
+**Bare paths silently return "Document not found" with no hint about the missing prefix.** Always prepend the collection name, or use the `docid` (`#abc123`) from search results — docids don't need a prefix.
+
+Snippet line numbers in qmd results are absolute (source-file positions). Pass them directly to `qmd get` with the `:from:count` suffix:
+
+```bash
+qmd get "mb-example-project/projects/example_project/work/tasks/TASK-0042/README.md:120:40"
+```
