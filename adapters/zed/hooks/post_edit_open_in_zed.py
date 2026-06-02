@@ -40,6 +40,20 @@ def main():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    tmux_pane = os.environ.get("TMUX_PANE")
+    if tmux_pane and snapshot and os.path.isfile(snapshot):
+        subprocess.Popen(
+            [
+                "python3",
+                os.path.join(os.path.dirname(__file__), "tmux_diff_injector.py"),
+                file_path,
+                snapshot,
+                tmux_pane,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
     # Snapshot left in /tmp — PreToolUse overwrites it on the next edit to the same file
 
 

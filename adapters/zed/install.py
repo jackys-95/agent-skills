@@ -44,6 +44,7 @@ HOOKS = [
 # Scripts copied to hooks dir but not registered as CC hooks
 SCRIPTS = [
     HOOKS_DIR / "revert_zed_snapshot.py",
+    HOOKS_DIR / "tmux_diff_injector.py",
 ]
 
 

@@ -48,22 +48,21 @@ python3 scripts/install_claude_code.py
 The installer copies `skills/task-memory-bank` and renders wrapper skills from
 the adapter manifest. The core skill remains the source of truth.
 
-## Zed Integration
+## Zed Integrations
 
-The skill installer (`scripts/install_claude_code.py`) only installs skills — it does not configure how Zed connects to Claude Code.
+You can use these agent skills with parallel agent harnesses of your choice (e.g., Claude Code, Codex) with Zed as the "meta-harness". Currently these agent skills currently supports Zed and Claude Code (CC)
 
-### Connecting Zed to Claude Code
+**zed-cc** is a Zed + CC pairing. It requires two adapters: the CC adapter (skills and wrappers) and the Zed adapter (diff view hooks).
 
-**Terminal Thread — recommended for Claude Pro/Max subscribers:**
-Runs CC inside a Zed terminal pane and uses your Claude subscription directly.
+```bash
+# 1. CC adapter — installs skills and /memory-* wrappers
+python3 scripts/install_claude_code.py
 
-1. In the agent panel, click **+** → **Terminal**
-2. Type `claude` and press Enter
+# 2. Zed adapter — installs diff view hooks, updates settings and CLAUDE.md
+python3 adapters/zed/install.py
+```
 
-`CC_ZED_HOOK=1` is set in `terminal.env` in `~/.config/zed/settings.json` — hooks (snapshot, diff view, revert) work automatically.
-
-**ACP external agent:**
-Configured via `agent_servers."claude-acp"` in `~/.config/zed/settings.json`. Starting 2026-06-15, ACP usage is billed at API rates separately from Claude Pro/Max subscriptions. See [Anthropic's subscription changes](https://zed.dev/blog/anthropic-subscription-changes).
+See [adapters/zed/README.md](adapters/zed/README.md) for how to enable the hooks inside Zed (terminal thread or ACP).
 
 ## Notes
 

@@ -1,6 +1,8 @@
 # Zed Adapter
 
-Opens a diff view in Zed whenever Claude Code edits or writes a file. CC continues immediately — review is non-blocking and you can revert via the CC panel if needed.
+The Zed-side half of a Zed + agent integration. Install this alongside an agent adapter to get a named pairing like **zed-cc** (Zed + Claude Code).
+
+Opens a diff view in Zed whenever the agent edits or writes a file. The agent continues immediately — review is non-blocking and you can revert via the agent panel if needed.
 
 ## Requirements
 
@@ -9,15 +11,29 @@ Opens a diff view in Zed whenever Claude Code edits or writes a file. CC continu
 
 ## Install
 
+Install the agent adapter first (e.g., the CC adapter for zed-cc):
+
+```bash
+python3 scripts/install_claude_code.py
+```
+
+Then install the Zed adapter:
+
 ```bash
 python3 adapters/zed/install.py
 ```
 
-This copies both hook scripts into `~/.claude/hooks/`, registers them as PreToolUse/PostToolUse hooks in `~/.claude/settings.json`, sets `defaultMode: acceptEdits`, and appends the adapter instructions to `~/.claude/CLAUDE.md`.
+This copies hook scripts into `~/.claude/hooks/`, registers them as PreToolUse/PostToolUse hooks in `~/.claude/settings.json`, sets `defaultMode: acceptEdits`, and appends the adapter instructions to `~/.claude/CLAUDE.md`.
 
 ## Enable inside Zed
 
-The hooks are guarded by `CC_ZED_HOOK=1` so they only fire when CC runs inside Zed. Set it under `agent_servers` in `~/.config/zed/settings.json`:
+The hooks are guarded by `CC_ZED_HOOK=1` so they only fire when CC runs inside Zed.
+
+**Terminal Thread (recommended for Claude Pro/Max subscribers):**
+`CC_ZED_HOOK=1` is already set via `terminal.env` — no extra config needed. Open the agent panel → **+** → **Terminal** → type `claude`.
+
+**ACP external agent:**
+Set the env var under `agent_servers` in `~/.config/zed/settings.json`:
 
 ```json
 {
@@ -32,7 +48,7 @@ The hooks are guarded by `CC_ZED_HOOK=1` so they only fire when CC runs inside Z
 }
 ```
 
-Without this, the hooks are no-ops — CC running in any other context is unaffected.
+Without `CC_ZED_HOOK=1`, the hooks are no-ops — CC running in any other context is unaffected.
 
 ## How it works
 
