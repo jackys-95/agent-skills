@@ -1,31 +1,49 @@
 #!/usr/bin/env python3
 import difflib
+import hashlib
 import os
 import subprocess
 import sys
+import time
 
-file_path, tmux_pane = sys.argv[1], sys.argv[3]
+file_path, tmux_pane, gen_token = sys.argv[1], sys.argv[3], sys.argv[4]
+
+TIMEOUT = 120
 
 
-def fswatch_once():
-    subprocess.run(
-        ["fswatch", "-1", file_path],
-        timeout=120,
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+def gen_stale():
+    path_hash = hashlib.sha256(file_path.encode()).hexdigest()[:16]
+    gen_file = f"/tmp/cc_gen_{path_hash}"
+    try:
+        return open(gen_file).read().strip() != gen_token
+    except OSError:
+        return True
 
+
+deadline = time.time() + TIMEOUT
+
+with open(file_path) as f:
+    before = f.read()
 
 try:
-    fswatch_once()  # discard — Zed writes the file when opening the diff view
-    with open(file_path) as f:
-        before = f.read()
-    fswatch_once()  # user's save
-    with open(file_path) as f:
-        after = f.read()
+    while True:
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            sys.exit(0)
+        subprocess.run(
+            ["fswatch", "-1", file_path],
+            timeout=remaining,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        with open(file_path) as f:
+            after = f.read()
+        if after != before:
+            break
+        # Content unchanged (Zed's internal write) — keep waiting
 
-    if after == before:
+    if gen_stale():
         sys.exit(0)
     diff = "".join(
         difflib.unified_diff(
@@ -39,4 +57,4 @@ try:
     subprocess.run(["tmux", "send-keys", "-t", tmux_pane, "-l", msg])
     subprocess.run(["tmux", "send-keys", "-t", tmux_pane, "Enter"])
 except subprocess.TimeoutExpired:
-    pass
+    sys.exit(0)

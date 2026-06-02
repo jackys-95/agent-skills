@@ -8,6 +8,7 @@ Opens a diff view in Zed whenever the agent edits or writes a file. The agent co
 
 - macOS
 - [Zed](https://zed.dev) with the `zed` CLI in PATH (`zed --version` to verify)
+- [fswatch](https://github.com/emcrisostomo/fswatch) for edit injection (`brew install fswatch`)
 
 ## Install
 
@@ -58,8 +59,30 @@ Without `CC_ZED_HOOK=1`, the hooks are no-ops — CC running in any other contex
 4. The `PostToolUse` hook opens `zed --diff <snapshot> <file>` non-blocking and brings Zed to the front.
 5. You review the diff in Zed at your own pace.
 
+If CC is running inside `tmux` (terminal thread → `tmux` → `claude`), a background watcher also starts for each written file. When you save your edits in Zed (Cmd+S), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed.
+
 ## UX
 
 - **Accept** — do nothing, CC has already moved on.
-- **Edit** — make changes in Zed and Cmd+S to save.
+- **Edit** — make changes in Zed and Cmd+S to save. If running inside tmux, CC is automatically notified with a diff of your changes.
 - **Revert** — reply `r` in the CC panel. CC reads the snapshot path from the `[Zed]` line and writes it back.
+
+## Edit injection (tmux)
+
+Run CC inside tmux for automatic edit notification:
+
+```bash
+tmux
+claude  # inside the tmux pane
+```
+
+`$TMUX_PANE` is set automatically — no extra config needed. When you save a diff view, CC receives:
+
+```
+[Zed edit] filename.py was saved with changes:
+--- a/filename.py
++++ b/filename.py
+@@ ...
+```
+
+If you close the diff without saving, or save without making changes, nothing is sent. The watcher expires silently after 120 seconds.
