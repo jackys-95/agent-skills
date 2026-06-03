@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 
 def main():
@@ -40,6 +41,25 @@ def main():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    tmux_pane = os.environ.get("TMUX_PANE")
+    if tmux_pane and snapshot and os.path.isfile(snapshot):
+        gen_token = str(time.time())
+        gen_file = f"/tmp/cc_gen_{path_hash}"
+        with open(gen_file, "w") as f:
+            f.write(gen_token)
+        subprocess.Popen(
+            [
+                "python3",
+                os.path.join(os.path.dirname(__file__), "tmux_diff_injector.py"),
+                file_path,
+                snapshot,
+                tmux_pane,
+                gen_token,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
     # Snapshot left in /tmp — PreToolUse overwrites it on the next edit to the same file
 
 
