@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -110,9 +111,17 @@ def install_claude_md(source: Path, target: Path, dry_run: bool) -> None:
     target.write_text(target_text, encoding="utf-8")
 
 
-def install_generic_skills(target_root: Path, dry_run: bool) -> None:
-    generic_qmd_skill = REPO_ROOT / "skills/qmd"
-    copy_skill("qmd", generic_qmd_skill, target_root / "qmd", dry_run)
+def install_qmd_skill(dry_run: bool) -> None:
+    qmd = shutil.which("qmd")
+    if not qmd:
+        pm = "bun" if shutil.which("bun") else "npm"
+        print(f"qmd not found — installing via {pm}...")
+        if not dry_run:
+            subprocess.run([pm, "install", "-g", "@tobilu/qmd"], check=True)
+    cmd = ["qmd", "skill", "install", "--global", "--yes"]
+    print(f"Install qmd skill: {' '.join(cmd)}")
+    if not dry_run:
+        subprocess.run(cmd, check=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -139,7 +148,7 @@ def main() -> int:
     )
 
     install_canonical_skills(manifest, template, target_root, args.dry_run)
-    install_generic_skills(target_root, args.dry_run)
+    install_qmd_skill(args.dry_run)
     install_claude_md(
         ADAPTER_DIR / "CLAUDE.md",
         target_root.parent / "CLAUDE.md",

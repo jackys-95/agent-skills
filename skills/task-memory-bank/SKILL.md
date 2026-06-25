@@ -129,4 +129,6 @@ python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py reindex
 
 If qmd is unavailable or unhealthy, still update markdown files and tell the user reindexing could not be completed.
 
-See [references/qmd.md](references/qmd.md) for collection naming, repo resolution, reindex routing, and diagnostics.
+See [references/qmd.md](references/qmd.md) for collection naming, repo resolution, and reindex routing.
+
+The qmd skill must be installed separately (`qmd skill install --global --yes` or via `scripts/install_claude_code.py`). For retrieval mechanics — query modes, CLI syntax, MCP call shape — invoke `/qmd` or run `qmd skill show`.
