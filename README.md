@@ -45,8 +45,13 @@ Install the canonical skill plus generated `/memory-*` wrappers with:
 python3 scripts/install_claude_code.py
 ```
 
-The installer copies `skills/task-memory-bank` and renders wrapper skills from
-the adapter manifest. The core skill remains the source of truth.
+The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, and installs the qmd skill (installing qmd itself first if it is not already present). The core skill remains the source of truth.
+
+**Prerequisite:** qmd is required for task-memory-bank to work. The installer handles this automatically; if you prefer to install manually:
+
+```bash
+bun install -g @tobilu/qmd   # or: npm install -g @tobilu/qmd
+```
 
 ## Zed Integrations
 
