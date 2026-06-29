@@ -15,6 +15,11 @@ import shutil
 HOOKS_DIR = pathlib.Path(__file__).parent / "hooks"
 ADAPTER_CLAUDE_MD = pathlib.Path(__file__).parent / "CLAUDE.md"
 
+# Zed bundles its CLI inside the .app; a Homebrew cask install symlinks it onto
+# PATH, but a direct .app download does not unless you run `cli: install`.
+# The post-edit hook calls a bare `zed --diff` and fails silently if it's missing.
+BUNDLED_ZED_CLI = pathlib.Path("/Applications/Zed.app/Contents/MacOS/cli")
+
 # Claude Code global config
 CLAUDE_SETTINGS = pathlib.Path.home() / ".claude" / "settings.json"
 CLAUDE_HOOKS_DIR = pathlib.Path.home() / ".claude" / "hooks"
@@ -41,8 +46,10 @@ HOOKS = [
     },
 ]
 
-# Scripts copied to hooks dir but not registered as CC hooks
+# Scripts copied to hooks dir but not registered as CC hooks.
+# _zed_common.py is the shared module the hooks import — it MUST land beside them.
 SCRIPTS = [
+    HOOKS_DIR / "_zed_common.py",
     HOOKS_DIR / "revert_zed_snapshot.py",
     HOOKS_DIR / "tmux_diff_injector.py",
 ]
@@ -106,6 +113,28 @@ def install_accept_edits(claude_settings):
     print("Set defaultMode: acceptEdits.")
 
 
+def check_zed_cli():
+    """Warn if the `zed` CLI isn't on PATH — the post-edit hook needs it to open diffs.
+
+    Returns True if `zed` resolves, False otherwise (install continues either way).
+    """
+    if shutil.which("zed"):
+        return True
+
+    print("\n⚠️  The `zed` CLI is not on your PATH.")
+    print("   The post-edit hook runs `zed --diff` to open the review pane; without")
+    print("   the CLI it fails silently and no diff appears.\n")
+    if BUNDLED_ZED_CLI.exists():
+        print("   Zed is installed, but its CLI isn't linked. Fix it with either:")
+        print("     • In Zed: command palette → `cli: install`")
+        print(f"     • Shell:  ln -s {BUNDLED_ZED_CLI} /usr/local/bin/zed")
+    else:
+        print("   Install Zed (https://zed.dev) and then run its `cli: install` command,")
+        print("   or `brew install --cask zed` which links the CLI for you.")
+    print("   Verify with: zed --version\n")
+    return False
+
+
 def main():
     CLAUDE_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
     claude_settings = load_claude_settings()
@@ -136,6 +165,9 @@ def main():
         f"In {ZED_SETTINGS} add:\n"
         f'  "agent_servers": {{ "claude-acp": {{ "type": "registry", "env": {{ "{ZED_ENV_VAR}": "1" }} }} }}'
     )
+
+    # Preflight: the diff pane silently no-ops without the `zed` CLI on PATH.
+    check_zed_cli()
 
 
 if __name__ == "__main__":

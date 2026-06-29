@@ -3,10 +3,11 @@
 
 Usage: python3 revert_zed_snapshot.py <file_path>
 """
-import hashlib
 import os
 import shutil
 import sys
+
+from _zed_common import pointer_path
 
 
 def main():
@@ -15,8 +16,7 @@ def main():
         sys.exit(1)
 
     file_path = os.path.abspath(sys.argv[1])
-    path_hash = hashlib.sha256(file_path.encode()).hexdigest()[:16]
-    pointer = f"/tmp/cc_pre_ptr_{path_hash}"
+    pointer = pointer_path(file_path)
 
     if not os.path.isfile(pointer):
         print(f"No snapshot pointer found for {file_path}", file=sys.stderr)

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import difflib
-import hashlib
 import os
 import subprocess
 import sys
 import time
+
+from _zed_common import gen_path
 
 file_path, tmux_pane, gen_token = sys.argv[1], sys.argv[3], sys.argv[4]
 
@@ -12,10 +13,8 @@ TIMEOUT = 120
 
 
 def gen_stale():
-    path_hash = hashlib.sha256(file_path.encode()).hexdigest()[:16]
-    gen_file = f"/tmp/cc_gen_{path_hash}"
     try:
-        return open(gen_file).read().strip() != gen_token
+        return open(gen_path(file_path)).read().strip() != gen_token
     except OSError:
         return True
 

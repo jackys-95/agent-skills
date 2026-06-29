@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import hashlib
 import json
 import os
 import subprocess
 import sys
 import time
+
+from _zed_common import gen_path, pointer_path, resolve_zed
 
 
 def main():
@@ -19,19 +20,31 @@ def main():
     if not file_path:
         sys.exit(0)
 
-    path_hash = hashlib.sha256(file_path.encode()).hexdigest()[:16]
-    pointer = f"/tmp/cc_pre_ptr_{path_hash}"
+    pointer = pointer_path(file_path)
     snapshot = open(pointer).read().strip() if os.path.isfile(pointer) else ""
+
+    zed = resolve_zed()
+    if not zed:
+        print(
+            "[Zed] `zed` CLI not found on PATH or in /Applications/Zed.app — "
+            "diff pane skipped. Fix: in Zed run command palette → `cli: install`, "
+            "or `brew install --cask zed`. Verify with `zed --version`.",
+            file=sys.stderr,
+        )
+        # Exit 1 so the first stderr line surfaces to the user as a hook-error
+        # notice. Exit 0 would bury it in transcript-only output; exit 2 routes
+        # it to Claude rather than the user. The tool already ran — nothing blocks.
+        sys.exit(1)
 
     if snapshot and os.path.isfile(snapshot):
         subprocess.Popen(
-            ["zed", "--diff", snapshot, file_path],
+            [zed, "--diff", snapshot, file_path],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
     else:
         subprocess.Popen(
-            ["zed", file_path],
+            [zed, file_path],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -44,7 +57,7 @@ def main():
     tmux_pane = os.environ.get("TMUX_PANE")
     if tmux_pane and snapshot and os.path.isfile(snapshot):
         gen_token = str(time.time())
-        gen_file = f"/tmp/cc_gen_{path_hash}"
+        gen_file = gen_path(file_path)
         with open(gen_file, "w") as f:
             f.write(gen_token)
         subprocess.Popen(

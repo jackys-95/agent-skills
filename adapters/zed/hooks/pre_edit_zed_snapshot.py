@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-import hashlib
 import json
 import os
 import shutil
 import sys
+import time
+
+from _zed_common import pointer_path, snapshot_path
+
+ONE_MS_AS_NS = 1_000_000
 
 
 def main():
@@ -18,14 +22,13 @@ def main():
     if not file_path or not os.path.isfile(file_path):
         sys.exit(0)
 
-    path_hash = hashlib.sha256(file_path.encode()).hexdigest()[:16]
-    ts = int(__import__("time").time_ns() // 1_000_000)
-    snapshot = f"/tmp/cc_pre_{path_hash}_{ts}"
+    ts_in_ms = int(time.time_ns() // ONE_MS_AS_NS)
+    snapshot = snapshot_path(file_path, ts_in_ms)
 
     shutil.copyfile(file_path, snapshot)
 
     # Pointer lets post-hook find this snapshot without recomputing the timestamp.
-    with open(f"/tmp/cc_pre_ptr_{path_hash}", "w") as f:
+    with open(pointer_path(file_path), "w") as f:
         f.write(snapshot)
 
     rel = os.path.relpath(file_path)
