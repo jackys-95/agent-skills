@@ -56,7 +56,7 @@ Without `CC_ZED_HOOK=1`, the hooks are no-ops — CC running in any other contex
 1. CC edits or writes a file (`acceptEdits` auto-approves the write).
 2. The `PreToolUse` hook snapshots the original file to `/tmp/cc_pre_<hash>` and prints a `[Zed]` line with the snapshot path.
 3. CC writes the file.
-4. The `PostToolUse` hook opens `zed -a --diff <snapshot> <file>` non-blocking and brings Zed to the front. The `-a`/`--add` flag pins the diff to the active workspace, so a diff on a file outside the current project (e.g. a task-memory-bank file, or a cross-package edit in a multi-repo workspace) doesn't swap the window's project.
+4. The `PostToolUse` hook opens `zed -a --diff <snapshot> <file>` non-blocking and brings Zed to the front. The `-a`/`--add` flag pins the diff to the active workspace, so a diff on a file outside the current project (e.g. a task-memory-bank file, or a cross-package edit in a multi-repo workspace) doesn't swap the window's project. New files (no snapshot) diff against an empty base (`zed -a --diff /dev/null <file>`); using `--diff` in both cases keeps the path a diff buffer rather than attaching it to the workspace as a loose worktree.
 5. You review the diff in Zed at your own pace.
 
 If CC is running inside `tmux` (terminal thread → `tmux` → `claude`), a background watcher also starts for each written file. When you save your edits in Zed (Cmd+S), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed.

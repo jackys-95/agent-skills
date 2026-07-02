@@ -8,6 +8,11 @@ PASS=0; FAIL=0
 ok()   { echo "PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 
+# The hook launches `zed` via a non-blocking Popen, so the shim appends to the log
+# asynchronously. Poll (up to ~2s) for the log to be non-empty before asserting,
+# otherwise the read races the shim and sees empty args.
+wait_for_log() { for _ in $(seq 1 40); do [ -s "$1" ] && return 0; sleep 0.05; done; return 1; }
+
 # 2a: no env var — silent, exit 0
 out=$(echo '{"tool_input":{"file_path":"/tmp/zed_test_file.txt"}}' | env -u CC_ZED_HOOK python3 "$HOOK" 2>&1)
 code=$?
@@ -33,6 +38,7 @@ echo "modified" > /tmp/zed_test_file.txt
 : > "$ZED_ARGS_LOG"
 out=$(CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< '{"tool_input":{"file_path":"/tmp/zed_test_file.txt"}}' 2>&1)
 code=$?
+wait_for_log "$ZED_ARGS_LOG"
 args=$(cat "$ZED_ARGS_LOG" 2>/dev/null)
 if [ $code -eq 0 ] && echo "$args" | grep -q -- '-a --diff'; then
   ok "2b: snapshot present → launches 'zed -a --diff' (args: $args)"
@@ -40,16 +46,19 @@ else
   fail "2b: exit=$code args='$args' out='$out'"
 fi
 
-# 2c: no snapshot — falls back to `zed -a <file>` (still -a so the fallback open
-# doesn't swap the project either).
+# 2c: no snapshot (new file) — diffs against an empty base (/dev/null) instead of a
+# bare `zed -a <file>` open. A bare open attaches the out-of-project path to the
+# focused workspace as a loose worktree and bloats its recent-projects entry;
+# `--diff` operands don't (see TASK-0012 / docs/zed-diff-hook-window-swap-fix.md).
 path_hash=$(python3 -c "import hashlib; print(hashlib.sha256(b'/tmp/zed_test_file.txt').hexdigest()[:16])")
 rm -f "/tmp/cc_pre_ptr_${path_hash}"
 : > "$ZED_ARGS_LOG"
 out=$(CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< '{"tool_input":{"file_path":"/tmp/zed_test_file.txt"}}' 2>&1)
 code=$?
+wait_for_log "$ZED_ARGS_LOG"
 args=$(cat "$ZED_ARGS_LOG" 2>/dev/null)
-if [ $code -eq 0 ] && echo "$args" | grep -q -- '-a ' && ! echo "$args" | grep -q -- '--diff'; then
-  ok "2c: no snapshot → fallback launches 'zed -a <file>' (args: $args)"
+if [ $code -eq 0 ] && echo "$args" | grep -q -- '-a --diff /dev/null /tmp/zed_test_file.txt'; then
+  ok "2c: no snapshot → diffs against /dev/null (args: $args)"
 else
   fail "2c: exit=$code args='$args' out='$out'"
 fi
