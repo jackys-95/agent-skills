@@ -57,11 +57,13 @@ def main():
         stderr=subprocess.DEVNULL,
     )
 
-    subprocess.run(
-        ["osascript", "-e", 'tell application "Zed" to activate'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    # No explicit `osascript ... activate` here: the `zed -a --diff` call above
+    # already raises Zed on its own (the CLI activates the app when it opens a
+    # buffer, and there's no flag to suppress that). An earlier version opened a
+    # plain buffer (`zed --wait <file>`) that didn't reliably front the app, so it
+    # needed the activate; the diff CLI made that redundant. There is no clean way
+    # to open the diff while keeping Zed backgrounded — restoring the prior
+    # frontmost app afterward flickers — so we accept that a diff fronts Zed.
     tmux_pane = os.environ.get("TMUX_PANE")
     if tmux_pane and snapshot and os.path.isfile(snapshot):
         gen_token = str(time.time())
