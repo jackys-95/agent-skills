@@ -26,8 +26,8 @@ bash adapters/zed/tests/unit/test_post_hook.sh
 | ID | Scenario | Expected |
 |----|----------|----------|
 | 2a | `CC_ZED_HOOK` not set | Silent, exit 0 |
-| 2b | Snapshot present | `zed --diff <snapshot> <file>` launched non-blocking, exit 0 |
-| 2c | Snapshot absent (new file) | `zed <file>` launched as fallback, exit 0 |
+| 2b | Snapshot present | `zed -a --diff <snapshot> <file>` launched non-blocking, exit 0 (the `-a`/--add flag pins the diff to the active workspace so out-of-project diffs don't swap the window's project) |
+| 2c | Snapshot absent (new file) | `zed -a <file>` launched as fallback, exit 0 |
 
 ---
 
