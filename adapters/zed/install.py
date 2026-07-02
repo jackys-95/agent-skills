@@ -17,7 +17,7 @@ ADAPTER_CLAUDE_MD = pathlib.Path(__file__).parent / "CLAUDE.md"
 
 # Zed bundles its CLI inside the .app; a Homebrew cask install symlinks it onto
 # PATH, but a direct .app download does not unless you run `cli: install`.
-# The post-edit hook calls a bare `zed --diff` and fails silently if it's missing.
+# The post-edit hook calls `zed -a --diff` and fails silently if it's missing.
 BUNDLED_ZED_CLI = pathlib.Path("/Applications/Zed.app/Contents/MacOS/cli")
 
 # Claude Code global config
@@ -122,7 +122,7 @@ def check_zed_cli():
         return True
 
     print("\n⚠️  The `zed` CLI is not on your PATH.")
-    print("   The post-edit hook runs `zed --diff` to open the review pane; without")
+    print("   The post-edit hook runs `zed -a --diff` to open the review pane; without")
     print("   the CLI it fails silently and no diff appears.\n")
     if BUNDLED_ZED_CLI.exists():
         print("   Zed is installed, but its CLI isn't linked. Fix it with either:")

@@ -36,15 +36,22 @@ def main():
         # it to Claude rather than the user. The tool already ran — nothing blocks.
         sys.exit(1)
 
+    # `-a`/`--add` opens the diff in the currently focused workspace instead of
+    # letting Zed pick a window by its own heuristic. Without it, a diff on a file
+    # OUTSIDE the focused project (e.g. a task-memory-bank file, or a cross-package
+    # edit in a multi-repo workspace) makes Zed reuse some other workspace and swap
+    # the active window's project. `-a` pins the diff to the focused window and
+    # preserves its root; in-project diffs were never affected. Verified against
+    # Zed 1.9.0, including concurrent multi-file bursts.
     if snapshot and os.path.isfile(snapshot):
         subprocess.Popen(
-            [zed, "--diff", snapshot, file_path],
+            [zed, "-a", "--diff", snapshot, file_path],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
     else:
         subprocess.Popen(
-            [zed, file_path],
+            [zed, "-a", file_path],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
