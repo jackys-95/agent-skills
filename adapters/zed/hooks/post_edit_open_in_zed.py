@@ -43,18 +43,19 @@ def main():
     # the active window's project. `-a` pins the diff to the focused window and
     # preserves its root; in-project diffs were never affected. Verified against
     # Zed 1.9.0, including concurrent multi-file bursts.
-    if snapshot and os.path.isfile(snapshot):
-        subprocess.Popen(
-            [zed, "-a", "--diff", snapshot, file_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    else:
-        subprocess.Popen(
-            [zed, "-a", file_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+    #
+    # Both branches use `--diff` so the path opens as a diff buffer, never a
+    # project worktree. A bare `zed -a <path>` (new file, no snapshot) attaches
+    # the out-of-project path to the focused workspace as a loose worktree and
+    # bloats its recent-projects entry; `--diff` operands do not. New files have
+    # no prior snapshot, so we diff them against an empty base (`/dev/null`) —
+    # the whole file renders as additions. Verified clean against Zed 1.9.0.
+    base = snapshot if snapshot and os.path.isfile(snapshot) else os.devnull
+    subprocess.Popen(
+        [zed, "-a", "--diff", base, file_path],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
     subprocess.run(
         ["osascript", "-e", 'tell application "Zed" to activate'],
