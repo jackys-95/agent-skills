@@ -9,6 +9,7 @@ macOS is the primary supported platform. Linux support is planned but not yet im
 ## Skills
 
 - [task-memory-bank](skills/task-memory-bank/SKILL.md): qmd-backed project/task memory bank workflows.
+- [query-kb](skills/query-kb/SKILL.md): qmd-backed knowledge base retrieval (knowledge files + learning primers); delegates task scope to task-memory-bank.
 
 ## Install For Codex
 
@@ -39,13 +40,19 @@ This repository includes Claude Code adapter source under:
 adapters/claude-code/
 ```
 
-Install the canonical skill plus generated `/memory-*` wrappers with:
+Install the skills plus generated `/memory-*` wrappers with:
 
 ```bash
 python3 scripts/install_claude_code.py
 ```
 
-The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skill remains the source of truth.
+The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`), installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skills remain the source of truth.
+
+**query-kb setup:** query-kb reads a git-ignored `registry.yaml` at its skill root listing the knowledge/learning collections to search. After installing, copy the template and fill in your real collection names:
+
+```bash
+cp ~/.claude/skills/query-kb/assets/registry.example.yaml ~/.claude/skills/query-kb/registry.yaml
+```
 
 **Prerequisite:** qmd is required for task-memory-bank to work. The installer handles this automatically; if you prefer to install manually:
 

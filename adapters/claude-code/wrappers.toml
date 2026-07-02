@@ -1,6 +1,11 @@
 canonical_skill = "task-memory-bank"
 canonical_skill_source = "skills/task-memory-bank"
 
+# Plain skills: copied verbatim to the CC skills dir, no generated wrappers.
+[[skills]]
+name = "query-kb"
+source = "skills/query-kb"
+
 [[wrappers]]
 name = "memory-init-project"
 workflow = "memory.init-project"
