@@ -19,7 +19,7 @@ def main():
         sys.exit(0)
 
     file_path = event.get("tool_input", {}).get("file_path", "")
-    if not file_path or not os.path.isfile(file_path):
+    if not file_path:
         sys.exit(0)
 
     session_id = event.get("session_id", "")
@@ -28,10 +28,20 @@ def main():
     # state: N edits to the same file in one turn still show original→final and
     # revert restores the pre-turn version. The marker (written by the post-hook,
     # cleared on UserPromptSubmit) signals "base already captured this turn" — on
-    # later edits we keep the first snapshot untouched. The post-hook, not this
-    # hook, records the marker, so new files created by Write (which don't exist at
-    # pre-time and never reach here) still land in the turn manifest.
+    # later edits we keep the first snapshot/pointer untouched.
     if os.path.isfile(seen_marker(session_id, file_path)):
+        sys.exit(0)
+
+    # New file (Write creating it): no turn-start content exists. Record a
+    # /dev/null pointer instead of a snapshot so revert deletes the file, restoring
+    # the pre-turn state ("did not exist"). The post-hook still records the marker,
+    # so the first Write pins /dev/null as the base and a later same-turn edit keeps
+    # it. The Stop hook already diffs a /dev/null base as all-additions.
+    if not os.path.isfile(file_path):
+        with open(pointer_path(file_path), "w") as f:
+            f.write(os.devnull)
+        rel = os.path.relpath(file_path)
+        print(f"[Zed] new file {rel} — created this turn; diff opens at end of turn; reply 'r {rel}' to revert (deletes it).")
         sys.exit(0)
 
     ts_in_ms = int(time.time_ns() // ONE_MS_AS_NS)

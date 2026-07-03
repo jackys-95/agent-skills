@@ -19,7 +19,8 @@ The diff itself does not open until the turn ends (the `Stop` hook flushes it).
   once per file from this turn's `[Zed]` lines, then ask what they want instead
 
 The diff base is each file's **turn-start** state, so reverting restores the file to how it was
-before this turn — even if CC edited it several times.
+before this turn — even if CC edited it several times. For a **new file created this turn**, the
+turn-start state is "did not exist", so reverting it **deletes** the file.
 
 ## Guidance
 
