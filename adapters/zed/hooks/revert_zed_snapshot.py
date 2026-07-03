@@ -23,6 +23,15 @@ def main():
         sys.exit(1)
 
     snapshot = open(pointer).read().strip()
+
+    # A /dev/null pointer means the file did not exist at turn start (created this
+    # turn by Write). Reverting = restoring "did not exist" = deleting it.
+    if snapshot == os.devnull:
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+        print(f"Reverted {file_path} — deleted (was created this turn)")
+        return
+
     if not os.path.isfile(snapshot):
         print(f"Snapshot file missing: {snapshot}", file=sys.stderr)
         sys.exit(1)

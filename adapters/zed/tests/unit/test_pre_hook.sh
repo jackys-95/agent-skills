@@ -16,10 +16,19 @@ out=$(echo '{"tool_input":{"file_path":"/tmp/testfile.txt"}}' | env -u CC_ZED_HO
 code=$?
 [ $code -eq 0 ] && [ -z "$out" ] && ok "1a: no env var → silent exit 0" || fail "1a: got exit=$code output='$out'"
 
-# 1b: nonexistent file — silent, exit 0
-out=$(CC_ZED_HOOK=1 python3 "$HOOK" <<< '{"tool_input":{"file_path":"/tmp/nonexistent_xyz_abc.txt"}}' 2>&1)
+# 1b: new file (does not exist yet — Write creating it) → /dev/null pointer recorded
+# and a new-file [Zed] line printed, so the file is revertible (delete) and diffable.
+newf="/tmp/zed_newfile_test.txt"
+newptr="/tmp/cc_pre_ptr_$(hash_of "$newf")"
+rm -f "$newf" "$newptr"
+out=$(CC_ZED_HOOK=1 python3 "$HOOK" <<< "{\"session_id\":\"newsess\",\"tool_input\":{\"file_path\":\"$newf\"}}" 2>&1)
 code=$?
-[ $code -eq 0 ] && [ -z "$out" ] && ok "1b: nonexistent file → silent exit 0" || fail "1b: got exit=$code output='$out'"
+if [ $code -eq 0 ] && echo "$out" | grep -q 'new file' && [ "$(cat "$newptr" 2>/dev/null)" = "/dev/null" ]; then
+    ok "1b: new file → /dev/null pointer recorded, revertible"
+else
+    fail "1b: exit=$code out='$out' ptr='$(cat "$newptr" 2>/dev/null)'"
+fi
+rm -f "$newptr"
 
 # 1c: happy path — snapshot written, [Zed] line includes snapshot path
 echo "original content" > /tmp/zed_test_file.txt

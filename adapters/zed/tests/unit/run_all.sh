@@ -17,3 +17,7 @@ bash "$DIR/test_reset_hook.sh"
 echo ""
 echo "=== stop_flush_zed_diffs.py ==="
 bash "$DIR/test_stop_hook.sh"
+
+echo ""
+echo "=== revert_zed_snapshot.py ==="
+bash "$DIR/test_revert_hook.sh"

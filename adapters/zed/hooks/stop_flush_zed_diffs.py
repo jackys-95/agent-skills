@@ -85,13 +85,12 @@ def main():
 
     # tmux edit-injector: when CC runs in a tmux pane, watch each file for a manual
     # Cmd+S in the diff and inject the saved delta back into the pane. One watcher
-    # per file that has a real snapshot base (new files against /dev/null have none).
+    # per edited file — including new files: the injector diffs the file's current
+    # (CC-written) content against whatever the user saves, so it needs no base.
     tmux_pane = os.environ.get("TMUX_PANE")
     if tmux_pane:
         injector = os.path.join(os.path.dirname(__file__), "tmux_diff_injector.py")
         for file_path, base in edits:
-            if base == os.devnull:
-                continue
             gen_token = str(time.time())
             with open(gen_path(file_path), "w") as f:
                 f.write(gen_token)
