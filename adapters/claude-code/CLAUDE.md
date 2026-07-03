@@ -46,3 +46,23 @@ before this turn — even if CC edited it several times.
 - Do not re-read a file after writing unless the user reverts it
 - The user approves by silence — do not ask for confirmation if they haven't replied
 <!-- zed-adapter -->
+
+<!-- phase-turns -->
+## Phase-Scoped Turns
+
+Diffs, revert windows, and memory reindexing are all batched **per turn** — so one giant turn
+produces one giant, mixed review. When working on a memory-banked item, end your turn at each
+phase checkpoint instead:
+
+- **Resume/plan turn**: state the objective and planned changes, **write the plan into the work
+  item** (`active.md` phase/next actions; a `designs/` doc if substantial), then end your turn.
+  No repo edits in this turn. The plan lives in the memory bank, not the chat — so the user can
+  green-light implementation, pause here, or switch to a cheaper model for the implement turn.
+- **Implement (+verify) turn(s)**: code changes and verification only. Ending this turn opens the
+  code diff by itself — uncontaminated by memory-bank writes.
+- **Memory close-out turn**: history, active.md, and index updates as their own turn, so memory
+  writes get their own diff and settle window.
+- End each phase turn with one line naming the next phase (e.g., `next: implement — reply to
+  continue`). Completion pressure is not a reason to keep going; a clean checkpoint beats a
+  finished mega-turn.
+<!-- phase-turns -->

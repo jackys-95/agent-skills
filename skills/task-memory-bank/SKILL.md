@@ -18,6 +18,11 @@ Use a qmd-backed markdown memory bank to keep project and work-item context slim
 - Treat `active.md` as current resumable state, not historical record. It must not contain session summaries, outcomes, or historical detail.
 - **Write history first, then update active.md.** Session detail goes in `history/YYYY-MM-DD-session-NNN.md` before `active.md` is rewritten. `active.md` links only to the latest session file; each session file links to its predecessor (reverse linked-list).
 - Create designs, specs, decisions, and attempts only when the work warrants them.
+- **Work in phase checkpoints.** Plan before editing — and persist the plan into the work item,
+  so implementation can resume cold in another session or model — and close out memory separately
+  from implementation. See the Phase Checkpoints workflow in
+  [references/workflows.md](references/workflows.md). Harness adapters may bind checkpoints to
+  turn boundaries.
 - **Reindex only settled state.** The index must never capture a write that is still
   provisional — e.g. still revertible in an editor's diff-review window. If the environment lets
   the user revert writes after the fact, defer reindexing past that window. Harness automation may

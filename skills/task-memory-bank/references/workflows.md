@@ -21,6 +21,24 @@ vec: what context is needed to resume <work item>
 hyde: The active.md for <work item> describes the current state, next actions, and any open questions needed to continue.
 ```
 
+## Phase Checkpoints
+
+Work on a memory-banked item proceeds in phases. Each boundary is a **checkpoint**: a point where the work so far is coherent, reviewable, and safe to pause.
+
+1. **Resume/plan** — load entrypoint context, state the objective, the planned changes, and any
+   missing context. **Write the plan into the work item**: planned changes and next actions go in
+   its `active.md` (set phase to `planned`); a substantial plan gets a `designs/` doc that
+   `active.md` links to. **No repo/product file edits in this phase.** The plan must survive
+   outside the conversation — so the user can pause after planning, resume in a fresh session, or
+   hand implementation to a different (cheaper) model that reads the plan cold from the bank.
+2. **Implement** — the code/content changes, and nothing else.
+3. **Verify** — run tests or otherwise exercise the change; report results faithfully.
+4. **Memory close-out** — the Update workflow (history → active.md → index/README), as its own phase, never mixed into implementation.
+
+At each boundary, stop at the checkpoint before continuing. If your harness adapter defines a checkpoint mechanism (e.g., ending your turn — see the adapter docs), use it; otherwise treat the boundary as the moment to summarize state to the user.
+
+**Collapsing phases:** for a small, low-risk change (roughly: ≤2 files, no design decisions taken), implement and verify may share a checkpoint. Two boundaries are never collapsed: the plan checkpoint before the first file edit, and the boundary before memory close-out.
+
 ## New Work
 
 Create the smallest useful work item.
