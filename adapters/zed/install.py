@@ -33,16 +33,35 @@ ZED_ENV_VAR = "CC_ZED_HOOK"
 
 FILE_MATCHER = "Edit|Write"
 
+# PreToolUse/PostToolUse are file-tool hooks (matched on Edit|Write); UserPromptSubmit
+# and Stop are turn-boundary hooks with no tool matcher. The pre-hook snapshots the
+# turn-start base once per file; the post-hook queues the file in the turn manifest;
+# UserPromptSubmit resets the manifest at turn start; Stop flushes the whole turn into
+# one multi-diff. Batching to Stop fronts Zed once per turn instead of once per edit.
 HOOKS = [
     {
         "event": "PreToolUse",
+        "matcher": FILE_MATCHER,
         "src": HOOKS_DIR / "pre_edit_zed_snapshot.py",
         "dest": CLAUDE_HOOKS_DIR / "pre_edit_zed_snapshot.py",
     },
     {
         "event": "PostToolUse",
+        "matcher": FILE_MATCHER,
         "src": HOOKS_DIR / "post_edit_open_in_zed.py",
         "dest": CLAUDE_HOOKS_DIR / "post_edit_open_in_zed.py",
+    },
+    {
+        "event": "UserPromptSubmit",
+        "matcher": None,
+        "src": HOOKS_DIR / "reset_zed_turn.py",
+        "dest": CLAUDE_HOOKS_DIR / "reset_zed_turn.py",
+    },
+    {
+        "event": "Stop",
+        "matcher": None,
+        "src": HOOKS_DIR / "stop_flush_zed_diffs.py",
+        "dest": CLAUDE_HOOKS_DIR / "stop_flush_zed_diffs.py",
     },
 ]
 
@@ -66,12 +85,15 @@ def save_claude_settings(data):
     CLAUDE_SETTINGS.write_text(json.dumps(data, indent=2) + "\n")
 
 
-def install_claude_hook(claude_settings, event, dest):
+def install_claude_hook(claude_settings, event, dest, matcher):
     entries = claude_settings.setdefault("hooks", {}).setdefault(event, [])
     cmd = f"python3 {dest}"
 
+    # Turn-boundary events (UserPromptSubmit, Stop) take no tool matcher; file-tool
+    # events (Pre/PostToolUse) are scoped to Edit|Write. Reuse an existing entry with
+    # the same matcher (None matches the matcher-less entry) so re-running is idempotent.
     for entry in entries:
-        if entry.get("matcher") == FILE_MATCHER:
+        if entry.get("matcher") == matcher:
             cmds = entry.setdefault("hooks", [])
             if any(h.get("command") == cmd for h in cmds):
                 print(f"{event} hook already installed.")
@@ -80,7 +102,10 @@ def install_claude_hook(claude_settings, event, dest):
             print(f"Added {event} hook to existing matcher.")
             return
 
-    entries.append({"matcher": FILE_MATCHER, "hooks": [{"type": "command", "command": cmd}]})
+    entry = {"hooks": [{"type": "command", "command": cmd}]}
+    if matcher is not None:
+        entry["matcher"] = matcher
+    entries.append(entry)
     print(f"Added {event} hook with new matcher.")
 
 
@@ -143,7 +168,7 @@ def main():
         shutil.copy2(hook["src"], hook["dest"])
         hook["dest"].chmod(0o755)
         print(f"Copied {hook['src'].name} → {hook['dest']}")
-        install_claude_hook(claude_settings, hook["event"], hook["dest"])
+        install_claude_hook(claude_settings, hook["event"], hook["dest"], hook["matcher"])
 
     for script in SCRIPTS:
         dest = CLAUDE_HOOKS_DIR / script.name

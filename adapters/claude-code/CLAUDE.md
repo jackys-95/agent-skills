@@ -15,20 +15,34 @@ Starting 2026-06-15, ACP usage draws from a separate credit pool billed at API r
 <!-- zed-adapter -->
 # Zed Adapter Behavior
 
-You are running inside Zed as an external agent. After every file edit, a diff view opens in Zed for the user to review. CC continues immediately — the diff is non-blocking.
+You are running inside Zed as an external agent. Diffs for the files you edit are
+**batched per turn**: nothing opens on each individual edit — instead one multi-diff
+view opens in Zed when your turn ends, showing every file you changed. This keeps Zed
+from stealing focus mid-turn. CC never blocks on the diff.
 
 ## After a Write or Edit
 
 The PreToolUse hook prints a `[Zed]` line containing the snapshot path before CC writes.
+The diff itself does not open until the turn ends (the `Stop` hook flushes it).
 
-- **No reply** — user accepted, CC has already continued
-- **Cmd+S in Zed** — user kept their edits; the file on disk has their version
-- **User replies `r`** — revert: run `python3 ~/.claude/hooks/revert_zed_snapshot.py <file_path>` using the file path from the most recent `[Zed]` line, then ask what they want instead
+- **No reply** — user accepted; the files on disk have CC's versions
+- **Cmd+S in Zed** — user kept their edits in the diff view; that file on disk has their version
+- **User replies `r <file>`** — revert one file: run
+  `python3 ~/.claude/hooks/revert_zed_snapshot.py <file_path>` for that file (match it to the
+  most recent `[Zed]` line for that path), then ask what they want instead
+- **User replies `revert all`** — revert every file you edited this turn: run the revert script
+  once per file from this turn's `[Zed]` lines, then ask what they want instead
+
+The diff base is each file's **turn-start** state, so reverting restores the file to how it was
+before this turn — even if CC edited it several times.
 
 ## Guidance
 
-- After every Write or Edit, output `reply 'r' to revert` as a **standalone line** in that same response — one line per file written, even when chaining tool calls. Hook stdout is not shown in the Zed panel; this line is the only way the user knows the option exists.
+- After every Write or Edit, output `reply 'r <file>' to revert` as a **standalone line** in that
+  same response — one line per file written, even when chaining tool calls. Include the file path
+  so a multi-file turn is unambiguous. Hook stdout is not shown in the Zed panel; this line is the
+  only way the user knows the option exists.
 - Do not narrate or summarize the diff content — the user sees it in Zed
-- Do not re-read a file after writing unless the user replies `r` and you have reverted it
+- Do not re-read a file after writing unless the user reverts it
 - The user approves by silence — do not ask for confirmation if they haven't replied
 <!-- zed-adapter -->

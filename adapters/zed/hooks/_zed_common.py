@@ -34,6 +34,29 @@ def gen_path(file_path):
     return f"/tmp/cc_gen_{path_hash(file_path)}"
 
 
+def sanitize_session(session_id):
+    """Reduce a hook event's session id to a filesystem-safe token.
+
+    Turn markers are keyed by session so concurrent Zed threads (each its own CC
+    session) never share a manifest. Falls back to "nosession" when the event
+    carries no id, which degrades gracefully to single-session behavior.
+    """
+    safe = "".join(c for c in (session_id or "") if c.isalnum() or c in "-_")
+    return safe or "nosession"
+
+
+def seen_marker(session_id, file_path):
+    """Per-(session, file) turn marker. Its existence means "already snapshotted
+    this turn" (so pre-hook keeps the FIRST snapshot as the turn-start base); its
+    contents are the file path, so the Stop hook can enumerate the turn's edits."""
+    return f"/tmp/cc_zed_seen_{sanitize_session(session_id)}_{path_hash(file_path)}"
+
+
+def seen_glob(session_id):
+    """Glob matching every turn marker for a session — the Stop-hook manifest."""
+    return f"/tmp/cc_zed_seen_{sanitize_session(session_id)}_*"
+
+
 def resolve_zed():
     """Return a usable `zed` binary path (PATH first, then the bundled .app), or None."""
     found = shutil.which("zed")

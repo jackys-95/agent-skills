@@ -2,7 +2,7 @@
 
 The Zed-side half of a Zed + agent integration. Install this alongside an agent adapter to get a named pairing like **zed-cc** (Zed + Claude Code).
 
-Opens a diff view in Zed whenever the agent edits or writes a file. The agent continues immediately — review is non-blocking and you can revert via the agent panel if needed.
+Opens a diff view in Zed for the files the agent changed. Diffs are **batched per turn**: instead of one diff popping up on every edit, all the files touched during a turn open together in a single multi-diff when the turn ends. This keeps Zed from stealing focus mid-turn (the Zed CLI always fronts the app when it opens content). The agent continues immediately — review is non-blocking and you can revert via the agent panel if needed.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ Then install the Zed adapter:
 python3 adapters/zed/install.py
 ```
 
-This copies hook scripts into `~/.claude/hooks/`, registers them as PreToolUse/PostToolUse hooks in `~/.claude/settings.json`, sets `defaultMode: acceptEdits`, and appends the adapter instructions to `~/.claude/CLAUDE.md`.
+This copies hook scripts into `~/.claude/hooks/`, registers them in `~/.claude/settings.json` (PreToolUse/PostToolUse on `Edit|Write`, plus turn-boundary UserPromptSubmit/Stop hooks), sets `defaultMode: acceptEdits`, and appends the adapter instructions to `~/.claude/CLAUDE.md`.
 
 ## Enable inside Zed
 
@@ -53,19 +53,23 @@ Without `CC_ZED_HOOK=1`, the hooks are no-ops — CC running in any other contex
 
 ## How it works
 
-1. CC edits or writes a file (`acceptEdits` auto-approves the write).
-2. The `PreToolUse` hook snapshots the original file to `/tmp/cc_pre_<hash>` and prints a `[Zed]` line with the snapshot path.
-3. CC writes the file.
-4. The `PostToolUse` hook opens `zed -a --diff <snapshot> <file>` non-blocking and brings Zed to the front. The `-a`/`--add` flag pins the diff to the active workspace, so a diff on a file outside the current project (e.g. a task-memory-bank file, or a cross-package edit in a multi-repo workspace) doesn't swap the window's project. New files (no snapshot) diff against an empty base (`zed -a --diff /dev/null <file>`); using `--diff` in both cases keeps the path a diff buffer rather than attaching it to the workspace as a loose worktree.
-5. You review the diff in Zed at your own pace.
+Diffs are batched per CC turn (one turn = one user prompt) and flushed on the `Stop` hook, so Zed fronts once per turn instead of once per edit. State is keyed by `session_id`, so concurrent Zed threads never share a batch.
 
-If CC is running inside `tmux` (terminal thread → `tmux` → `claude`), a background watcher also starts for each written file. When you save your edits in Zed (Cmd+S), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed.
+1. **Turn start** — `UserPromptSubmit` clears this session's per-turn markers.
+2. CC edits or writes a file (`acceptEdits` auto-approves the write).
+3. The `PreToolUse` hook snapshots the file's **turn-start** state to `/tmp/cc_pre_<hash>` (once per file per turn — the first edit wins, so repeated edits keep the pre-turn base) and prints a `[Zed]` line with the snapshot path.
+4. The `PostToolUse` hook queues the file in the turn manifest (a per-`(session, file)` marker). No diff opens yet.
+5. **Turn end** — the `Stop` hook opens ONE `zed -a --diff <base> <file> --diff <base> <file> …` covering every file changed this turn, non-blocking, bringing Zed to the front once. `--diff` given many pairs renders them in a single multi-diff pane. The `-a`/`--add` flag pins the diff to the active workspace, so a diff on a file outside the current project (e.g. a task-memory-bank file, or a cross-package edit in a multi-repo workspace) doesn't swap the window's project. New files (no snapshot) diff against an empty base (`/dev/null`); using `--diff` for every operand keeps each path a diff buffer rather than attaching it to the workspace as a loose worktree.
+6. You review the multi-diff in Zed at your own pace.
+
+If CC is running inside `tmux` (terminal thread → `tmux` → `claude`), the Stop hook also starts a background watcher for each changed file that has a snapshot. When you save your edits in Zed (Cmd+S), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed.
 
 ## UX
 
 - **Accept** — do nothing, CC has already moved on.
 - **Edit** — make changes in Zed and Cmd+S to save. If running inside tmux, CC is automatically notified with a diff of your changes.
-- **Revert** — reply `r` in the CC panel. CC reads the snapshot path from the `[Zed]` line and writes it back.
+- **Revert one file** — reply `r <file>` in the CC panel. CC reads the snapshot path from that file's `[Zed]` line and writes it back (restoring its turn-start state).
+- **Revert all** — reply `revert all` to roll back every file CC changed this turn.
 
 ## Edit injection (tmux)
 
