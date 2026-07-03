@@ -60,10 +60,34 @@ First read and follow `task-memory-bank/SKILL.md`. Resolve the project, read the
 
 The generated wrappers should stay short. If behavior changes, update `skills/task-memory-bank/SKILL.md`, its references, `memory_bank.py`, or the adapter manifest/template first, then reinstall.
 
+## Reindex Hooks
+
+The adapter owns the qmd reindex automation (moved here from the skill; design:
+`docs/task-memory-bank-reindex-hooks.md`). Source lives in `adapters/claude-code/hooks/`; the
+installer copies the scripts to `~/.claude/hooks/` and registers the events in
+`~/.claude/settings.json` via the neutral `scripts/hook_install.py` helper.
+
+| Event | Matcher | Script | Action |
+|---|---|---|---|
+| `PostToolUse` | `Edit\|Write` | `post_edit_mark_dirty.py` | If the edited path is under a tracked collection root (from `~/.config/qmd/index.yml`), drop a dirty marker `/tmp/cc_tmb_dirty_<collection>`. Never reindexes. |
+| `UserPromptSubmit` | — | `reindex_dirty_collections.py` | Flush: for each dirty marker, run `memory_bank.py reindex --collection <name>` detached and silent, clearing markers first. |
+| `SessionEnd` | — | `reindex_dirty_collections.py` | Same flush — covers the final turn of a clean session. |
+| `SessionStart` | — | `reindex_dirty_collections.py` | Same flush — crash-recovery net for hard-killed sessions; no-ops otherwise. |
+
+This is the adapter's implementation of the skill's settled-state invariant ("reindex only settled
+state"): all flush events fire after the turn's diff-review window has closed, so the index never
+captures a write the user is about to revert. The flush hook locates the deployed `memory_bank.py`
+as a sibling of its own hooks directory (`<claude-dir>/skills/task-memory-bank/scripts/`);
+`TMB_MEMORY_BANK` overrides for non-default install targets.
+
+Side-effect boundary: the hooks only write `/tmp` markers and invoke `memory_bank.py reindex` —
+they never modify memory-bank markdown. Manual fallback when the hooks aren't installed:
+`memory-reindex` wrapper or `memory_bank.py reindex --collection <name>`.
+
 ## Side Effects And Permissions
 
 Memory roots commonly live outside the app repository, for example `~/memory/task-memory-bank`. Claude Code must have filesystem permission to read and write that root before init, update, handoff, or reindex workflows can succeed.
 
-When qmd is unavailable or the watcher is not running, the skill should still update markdown files and report that `qmd update` and `qmd embed` need to run.
+When qmd is unavailable or the reindex hooks are not installed, the skill should still update markdown files and report that `qmd update` and `qmd embed` need to run.
 
 Use hooks/events only for lightweight coordination such as prompting an update or reindex after a session. Do not hide memory-bank mutations inside hooks unless the user has explicitly opted into that behavior.

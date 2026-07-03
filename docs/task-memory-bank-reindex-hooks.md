@@ -3,8 +3,22 @@
 **Status:** implemented — hooks + installer wiring + `reindex --collection` landed, unit-tested;
 live end-to-end verification pending
 **Date:** 2026-07-02
-**Component:** task-memory-bank skill (reindex trigger); interacts with the Zed adapter's per-turn
-diff hooks (`adapters/zed/`)
+**Component:** claude-code adapter (`adapters/claude-code/hooks/`);
+interacts with the Zed adapter's per-turn diff hooks (`adapters/zed/`)
+
+> **Amended 2026-07-03** Two changes to this record:
+>
+> 1. **§5 "Placement" is superseded.** §5 asked "is this Zed-specific?" but never "is this
+>    CC-specific?" — the hooks are CC-specific three ways (CC event names, CC stdin payload schema,
+>    `~/.claude` deployment path), so they violate the repo's "Core Skill Remains Canonical"
+>    decision when placed inside the skill. The hook scripts now live in
+>    `adapters/claude-code/hooks/`, registered by the same CC installer. §5's installer-separation
+>    reasoning (CC hooks vs. Zed hooks, neutral shared helper) still stands.
+> 2. **§1's Requirement is promoted into skill canon.** The settled-state invariant ("the index
+>    reflects only settled state, never provisional writes") originated here as a one-adapter design
+>    requirement derived from the Zed diff-review scenario; we promote it into
+>    `SKILL.md` Core Rules in harness-neutral wording. "Never reindex mid-turn" is this adapter's
+>    *implementation* of the invariant, not the invariant itself.
 
 > **Supersedes the daemon direction in [`task-memory-bank-watcher.md`](task-memory-bank-watcher.md).**
 > That note proposed a long-running `chokidar` filesystem watcher with debounce windows. A watcher
@@ -167,6 +181,10 @@ markers have a positive reason to be ephemeral.
 
 ## 5. Placement
 
+> **Superseded on 2026-07-03 — see the amendment banner.** The "logic belongs to the
+> skill" conclusion below missed that the scripts themselves are CC-specific; they now live in
+> `adapters/claude-code/hooks/`. The installer-separation analysis remains valid.
+
 Separate the hook's **logic** from its **registration**:
 
 - **Logic (the hook scripts) belongs to the task-memory-bank skill** — reindex is a memory-bank
@@ -203,6 +221,10 @@ The Zed adapter and this reindexer are independent hook sets that happen to shar
 
 ## 6. Skill guidance change
 
+> **Wording superseded on 2026-07-03.** The replacement text below leaks CC event names
+> and "mid-turn" into the canonical skill; `SKILL.md` now states the neutral settled-state
+> invariant instead, and event mechanics live only in this doc and the adapter docs.
+
 Replace the current instruction in `skills/task-memory-bank/SKILL.md`
 ("Reindex qmd after structured writes when the watcher is not known to be running") and the inline
 `memory_bank.py reindex` snippet with:
@@ -234,6 +256,9 @@ Replace the current instruction in `skills/task-memory-bank/SKILL.md`
   never pulls in Zed code, and vice-versa. Hook *scripts* live with the tmb skill (§5).
 
 **Open:**
+
+> **Stale as of 2026-07-03: both items below landed** — `scripts/hook_install.py`
+> exists and both installers import it; `reindex --collection` shipped with the hooks.
 
 - **Neutral shared hook-install helper:** the CC installer has no `settings.json` hook-registration
   code today; the only copy is in `adapters/zed/install.py`. Lift `install_claude_hook()` into a

@@ -45,7 +45,7 @@ Install the canonical skill plus generated `/memory-*` wrappers with:
 python3 scripts/install_claude_code.py
 ```
 
-The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, and installs the qmd skill (installing qmd itself first if it is not already present). The core skill remains the source of truth.
+The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skill remains the source of truth.
 
 **Prerequisite:** qmd is required for task-memory-bank to work. The installer handles this automatically; if you prefer to install manually:
 
@@ -60,7 +60,7 @@ You can use these agent skills with parallel agent harnesses of your choice (e.g
 **zed-cc** is a Zed + CC pairing. It requires two adapters: the CC adapter (skills and wrappers) and the Zed adapter (diff view hooks).
 
 ```bash
-# 1. CC adapter — installs skills and /memory-* wrappers
+# 1. CC adapter — installs skills, /memory-* wrappers, and reindex hooks
 python3 scripts/install_claude_code.py
 
 # 2. Zed adapter — installs diff view hooks, updates settings and CLAUDE.md

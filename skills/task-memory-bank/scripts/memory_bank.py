@@ -551,9 +551,9 @@ def append_history(args: argparse.Namespace) -> None:
 
 
 def reindex(args: argparse.Namespace) -> None:
-    # Explicit --collection wins: callers that already know the collection (e.g. the
-    # reindex hooks, which read it from a dirty marker) skip cwd/git resolution — the
-    # cwd may not map to the dirty collection, and KB collections have no git repo.
+    # Explicit --collection wins: callers that already know the collection skip
+    # cwd/git resolution — the cwd may not map to the target collection, and KB
+    # collections have no git repo.
     collection: str | None = getattr(args, "collection", None)
     root = getattr(args, "root", None)
     if not collection and root:
@@ -666,7 +666,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--collection", "-c", dest="collection", required=False, default=None,
         help="Scope embed to this exact qmd collection, bypassing cwd/git resolution. "
-             "Used by the reindex hooks, which read the dirty collection from a marker.",
+             "For callers that already know the target collection.",
     )
     p.add_argument(
         "--memory-root", "--root", dest="root", required=False, default=None,

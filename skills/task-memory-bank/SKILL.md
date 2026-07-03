@@ -1,6 +1,7 @@
 ---
 name: task-memory-bank
 description: Build, maintain, and resume qmd-backed task memory banks for software projects. Use when creating project memory structure, starting epics/stories/tasks/spikes, resuming active work, writing handoffs, or updating active context/history across agents.
+compatibility: Requires the qmd CLI (`@tobilu/qmd`) with the memory-bank collections indexed; qmd MCP tools recommended for retrieval.
 ---
 
 # Task Memory Bank
@@ -17,11 +18,11 @@ Use a qmd-backed markdown memory bank to keep project and work-item context slim
 - Treat `active.md` as current resumable state, not historical record. It must not contain session summaries, outcomes, or historical detail.
 - **Write history first, then update active.md.** Session detail goes in `history/YYYY-MM-DD-session-NNN.md` before `active.md` is rewritten. `active.md` links only to the latest session file; each session file links to its predecessor (reverse linked-list).
 - Create designs, specs, decisions, and attempts only when the work warrants them.
-- **Do not reindex qmd inline mid-turn.** Reindex is handled by lifecycle hooks (a `PostToolUse`
-  detector marks the edited collection dirty; `UserPromptSubmit` / `SessionEnd` / `SessionStart`
-  flush the reindex once the turn's diff-review window has closed). Reindexing mid-turn churns the
-  editor and can index a memory-bank edit the user is about to revert. If the hooks are not
-  installed, defer any manual reindex to the very end of the response — never between writes.
+- **Reindex only settled state.** The index must never capture a write that is still
+  provisional — e.g. still revertible in an editor's diff-review window. If the environment lets
+  the user revert writes after the fact, defer reindexing past that window. Harness automation may
+  handle reindexing for you (see your harness's adapter docs); otherwise reindex at the end of the
+  work, never between writes.
 
 ## Start Here
 
@@ -125,15 +126,18 @@ hyde: The active.md for TASK-0042 describes the current state, next actions, and
 known paths: projects/example_project/work/tasks/TASK-0042-fix-saved-filter-state/active.md
 ```
 
-Reindexing after memory-bank writes is normally automatic via the reindex lifecycle hooks (see the
-Core Rules above) — you do **not** run it inline. Only if those hooks are not installed, reindex
-through the qmd skill, or run this at the **end** of the turn (never between writes):
+**Read/write asymmetry:** reads go to qmd directly (MCP tools or CLI — idempotent, safe anytime);
+writes, structure changes, and indexing go through `memory_bank.py` only.
+
+Reindexing after memory-bank writes may be automated by your harness (see its adapter docs) — in
+that case you do **not** run it yourself. Otherwise, run this at the **end** of the work, never
+between writes (see the settled-state rule in Core Rules):
 
 ```bash
 python3 <skill-dir>/scripts/memory_bank.py reindex --collection <name>
 ```
 
-`--collection <name>` scopes the embed to one collection (what the hooks pass); omit it to fall back
+`--collection <name>` scopes the embed to one collection; omit it to fall back
 to git-repo resolution, or run with neither to rebuild all collections. If qmd is unavailable or
 unhealthy, still update markdown files and tell the user reindexing could not be completed.
 
