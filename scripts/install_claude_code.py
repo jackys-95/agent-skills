@@ -28,7 +28,7 @@ CLAUDE_HOOKS_DIR = Path.home() / ".claude" / "hooks"
 # collection dirty on Edit|Write; three turn-boundary events flush the reindex once
 # the diff review window has closed. _reindex_common.py is the shared module (copied
 # beside the hooks, not registered). See docs/task-memory-bank-reindex-hooks.md.
-REINDEX_HOOKS_SRC = REPO_ROOT / "skills" / "task-memory-bank" / "hooks"
+REINDEX_HOOKS_SRC = ADAPTER_DIR / "hooks"
 REINDEX_HOOKS = [
     {"event": "PostToolUse", "matcher": "Edit|Write", "script": "post_edit_mark_dirty.py"},
     {"event": "UserPromptSubmit", "matcher": None, "script": "reindex_dirty_collections.py"},

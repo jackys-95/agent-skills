@@ -75,9 +75,11 @@ fi
 
 # 5: flush hook with NO markers → does not launch the reindexer
 rm -f $marker_glob
-# Shim memory_bank.py location by faking the installed path under $HOME.
+# Shim memory_bank.py via the TMB_MEMORY_BANK override (the hook normally finds the
+# script as a sibling of its own deployed hooks/ dir, which doesn't exist in-repo).
 MB_DIR="$WORK/.claude/skills/task-memory-bank/scripts"
 mkdir -p "$MB_DIR"
+export TMB_MEMORY_BANK="$MB_DIR/memory_bank.py"
 REINDEX_LOG="$WORK/reindex_calls.log"
 cat > "$MB_DIR/memory_bank.py" <<PYSHIM
 import sys

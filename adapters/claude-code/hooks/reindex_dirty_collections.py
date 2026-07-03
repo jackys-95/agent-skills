@@ -26,15 +26,23 @@ from _reindex_common import clear_marker, dirty_collections
 
 
 def find_memory_bank():
-    """Locate the deployed memory_bank.py. Installed beside the skill; fall back to
-    a sibling of this hook's original repo layout if present."""
-    candidates = [
-        os.path.expanduser("~/.claude/skills/task-memory-bank/scripts/memory_bank.py"),
-    ]
-    for path in candidates:
-        if os.path.isfile(path):
-            return path
-    return None
+    """Locate the deployed memory_bank.py.
+
+    The installer deploys this hook to <claude-dir>/hooks/ and the skill to
+    <claude-dir>/skills/, so the script is a sibling-tree lookup from this file's
+    own location. TMB_MEMORY_BANK overrides for non-default --target installs.
+    """
+    override = os.environ.get("TMB_MEMORY_BANK")
+    if override:
+        override = os.path.expanduser(override)
+        return override if os.path.isfile(override) else None
+
+    hooks_dir = os.path.dirname(os.path.abspath(__file__))
+    claude_dir = os.path.dirname(hooks_dir)
+    path = os.path.join(
+        claude_dir, "skills", "task-memory-bank", "scripts", "memory_bank.py"
+    )
+    return path if os.path.isfile(path) else None
 
 
 def main():
