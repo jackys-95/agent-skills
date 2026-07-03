@@ -10,6 +10,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Adapter-neutral hook-registration helpers (same scripts/ dir).
+from hook_install import install_hook, load_settings, save_settings
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
@@ -19,6 +22,20 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ADAPTER_DIR = REPO_ROOT / "adapters" / "claude-code"
 DEFAULT_TARGET = Path.home() / ".claude" / "skills"
+CLAUDE_HOOKS_DIR = Path.home() / ".claude" / "hooks"
+
+# task-memory-bank reindex hooks. A PostToolUse detector marks a memory-bank/KB
+# collection dirty on Edit|Write; three turn-boundary events flush the reindex once
+# the diff review window has closed. _reindex_common.py is the shared module (copied
+# beside the hooks, not registered). See docs/task-memory-bank-reindex-hooks.md.
+REINDEX_HOOKS_SRC = REPO_ROOT / "skills" / "task-memory-bank" / "hooks"
+REINDEX_HOOKS = [
+    {"event": "PostToolUse", "matcher": "Edit|Write", "script": "post_edit_mark_dirty.py"},
+    {"event": "UserPromptSubmit", "matcher": None, "script": "reindex_dirty_collections.py"},
+    {"event": "SessionEnd", "matcher": None, "script": "reindex_dirty_collections.py"},
+    {"event": "SessionStart", "matcher": None, "script": "reindex_dirty_collections.py"},
+]
+REINDEX_SUPPORT = ["_reindex_common.py"]
 
 
 def load_manifest(path: Path) -> dict:
@@ -121,7 +138,39 @@ def install_qmd_skill(dry_run: bool) -> None:
     cmd = ["qmd", "skill", "install", "--global", "--yes"]
     print(f"Install qmd skill: {' '.join(cmd)}")
     if not dry_run:
-        subprocess.run(cmd, check=True)
+        # `qmd skill install` exits non-zero when the skill already exists (idempotent
+        # re-run). That is not a failure worth aborting the whole install for — and
+        # aborting here would skip everything after (e.g. the reindex hooks). Report
+        # the outcome instead of raising.
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            print("  (qmd skill already installed or install skipped — continuing)")
+
+
+def install_reindex_hooks(dry_run: bool) -> None:
+    """Copy the reindex hook scripts to ~/.claude/hooks and register the events.
+
+    Independent of the Zed adapter: shares only the neutral hook_install helpers, so
+    a CC-only user installs these without any Zed code. Idempotent.
+    """
+    print(f"Install reindex hooks: {REINDEX_HOOKS_SRC} -> {CLAUDE_HOOKS_DIR}")
+    if dry_run:
+        for hook in REINDEX_HOOKS:
+            print(f"  register {hook['event']} -> {hook['script']}")
+        return
+
+    CLAUDE_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
+    for name in REINDEX_SUPPORT + [h["script"] for h in REINDEX_HOOKS]:
+        src = REINDEX_HOOKS_SRC / name
+        dest = CLAUDE_HOOKS_DIR / name
+        shutil.copy2(src, dest)
+        dest.chmod(0o755)
+
+    settings = load_settings()
+    for hook in REINDEX_HOOKS:
+        dest = CLAUDE_HOOKS_DIR / hook["script"]
+        install_hook(settings, hook["event"], dest, hook["matcher"])
+    save_settings(settings)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -149,6 +198,7 @@ def main() -> int:
 
     install_canonical_skills(manifest, template, target_root, args.dry_run)
     install_qmd_skill(args.dry_run)
+    install_reindex_hooks(args.dry_run)
     install_claude_md(
         ADAPTER_DIR / "CLAUDE.md",
         target_root.parent / "CLAUDE.md",

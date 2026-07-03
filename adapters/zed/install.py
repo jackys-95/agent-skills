@@ -11,6 +11,12 @@ Then set CC_ZED_HOOK=1 in Zed's terminal environment:
 import json
 import pathlib
 import shutil
+import sys
+
+# Shared, adapter-neutral hook-registration helpers live in <repo>/scripts. Import
+# by path so this installer stays self-contained without a package layout.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+from hook_install import install_hook, load_settings, save_settings  # noqa: E402
 
 HOOKS_DIR = pathlib.Path(__file__).parent / "hooks"
 ADAPTER_CLAUDE_MD = pathlib.Path(__file__).parent / "CLAUDE.md"
@@ -74,41 +80,6 @@ SCRIPTS = [
 ]
 
 
-def load_claude_settings():
-    if CLAUDE_SETTINGS.exists():
-        return json.loads(CLAUDE_SETTINGS.read_text())
-    return {}
-
-
-def save_claude_settings(data):
-    CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    CLAUDE_SETTINGS.write_text(json.dumps(data, indent=2) + "\n")
-
-
-def install_claude_hook(claude_settings, event, dest, matcher):
-    entries = claude_settings.setdefault("hooks", {}).setdefault(event, [])
-    cmd = f"python3 {dest}"
-
-    # Turn-boundary events (UserPromptSubmit, Stop) take no tool matcher; file-tool
-    # events (Pre/PostToolUse) are scoped to Edit|Write. Reuse an existing entry with
-    # the same matcher (None matches the matcher-less entry) so re-running is idempotent.
-    for entry in entries:
-        if entry.get("matcher") == matcher:
-            cmds = entry.setdefault("hooks", [])
-            if any(h.get("command") == cmd for h in cmds):
-                print(f"{event} hook already installed.")
-                return
-            cmds.append({"type": "command", "command": cmd})
-            print(f"Added {event} hook to existing matcher.")
-            return
-
-    entry = {"hooks": [{"type": "command", "command": cmd}]}
-    if matcher is not None:
-        entry["matcher"] = matcher
-    entries.append(entry)
-    print(f"Added {event} hook with new matcher.")
-
-
 def install_claude_md():
     content = ADAPTER_CLAUDE_MD.read_text()
     block = f"{CLAUDE_MD_MARKER}\n{content.rstrip()}\n{CLAUDE_MD_MARKER}"
@@ -162,13 +133,13 @@ def check_zed_cli():
 
 def main():
     CLAUDE_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
-    claude_settings = load_claude_settings()
+    claude_settings = load_settings()
 
     for hook in HOOKS:
         shutil.copy2(hook["src"], hook["dest"])
         hook["dest"].chmod(0o755)
         print(f"Copied {hook['src'].name} → {hook['dest']}")
-        install_claude_hook(claude_settings, hook["event"], hook["dest"], hook["matcher"])
+        install_hook(claude_settings, hook["event"], hook["dest"], hook["matcher"])
 
     for script in SCRIPTS:
         dest = CLAUDE_HOOKS_DIR / script.name
@@ -177,7 +148,7 @@ def main():
         print(f"Copied {script.name} → {dest}")
 
     install_accept_edits(claude_settings)
-    save_claude_settings(claude_settings)
+    save_settings(claude_settings)
     print(f"Updated Claude settings: {CLAUDE_SETTINGS}")
 
     # Install CLAUDE.md section

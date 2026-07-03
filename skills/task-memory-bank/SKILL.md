@@ -17,19 +17,23 @@ Use a qmd-backed markdown memory bank to keep project and work-item context slim
 - Treat `active.md` as current resumable state, not historical record. It must not contain session summaries, outcomes, or historical detail.
 - **Write history first, then update active.md.** Session detail goes in `history/YYYY-MM-DD-session-NNN.md` before `active.md` is rewritten. `active.md` links only to the latest session file; each session file links to its predecessor (reverse linked-list).
 - Create designs, specs, decisions, and attempts only when the work warrants them.
-- Reindex qmd after structured writes when the watcher is not known to be running.
+- **Do not reindex qmd inline mid-turn.** Reindex is handled by lifecycle hooks (a `PostToolUse`
+  detector marks the edited collection dirty; `UserPromptSubmit` / `SessionEnd` / `SessionStart`
+  flush the reindex once the turn's diff-review window has closed). Reindexing mid-turn churns the
+  editor and can index a memory-bank edit the user is about to revert. If the hooks are not
+  installed, defer any manual reindex to the very end of the response — never between writes.
 
 ## Start Here
 
 For deterministic scaffolding, use:
 
 ```bash
-python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py init-project --root ~/memory/task-memory-bank --project example_project --repo ~/work/example-project
-python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py new-work --root ~/memory/task-memory-bank --project example_project --type task --title "Fix saved filter state"
-python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
+python3 <skill-dir>/scripts/memory_bank.py init-project --root ~/memory/task-memory-bank --project example_project --repo ~/work/example-project
+python3 <skill-dir>/scripts/memory_bank.py new-work --root ~/memory/task-memory-bank --project example_project --type task --title "Fix saved filter state"
+python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
 ```
 
-If `${CODEX_SKILL_DIR}` is unavailable in the current agent, resolve the script relative to this skill directory.
+`<skill-dir>` is this skill's own directory — resolve the script path relative to it.
 
 For first-time setup examples and direct CLI usage, see [references/quickstart.md](references/quickstart.md).
 
@@ -101,7 +105,7 @@ See [references/workflows.md](references/workflows.md) for resume, update, hando
 Before searching qmd from a repo, resolve the repo to its memory project:
 
 ```bash
-python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
+python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
 ```
 
 Use the returned `collection`, `memory_path`, and `read_first` files. Do not guess collection names when `.memory-bank/collections.yaml` is available.
@@ -121,13 +125,17 @@ hyde: The active.md for TASK-0042 describes the current state, next actions, and
 known paths: projects/example_project/work/tasks/TASK-0042-fix-saved-filter-state/active.md
 ```
 
-After memory-bank writes, reindex through the qmd skill if available, or run:
+Reindexing after memory-bank writes is normally automatic via the reindex lifecycle hooks (see the
+Core Rules above) — you do **not** run it inline. Only if those hooks are not installed, reindex
+through the qmd skill, or run this at the **end** of the turn (never between writes):
 
 ```bash
-python3 ${CODEX_SKILL_DIR}/scripts/memory_bank.py reindex
+python3 <skill-dir>/scripts/memory_bank.py reindex --collection <name>
 ```
 
-If qmd is unavailable or unhealthy, still update markdown files and tell the user reindexing could not be completed.
+`--collection <name>` scopes the embed to one collection (what the hooks pass); omit it to fall back
+to git-repo resolution, or run with neither to rebuild all collections. If qmd is unavailable or
+unhealthy, still update markdown files and tell the user reindexing could not be completed.
 
 See [references/qmd.md](references/qmd.md) for collection naming, repo resolution, and reindex routing.
 
