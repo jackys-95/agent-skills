@@ -551,9 +551,12 @@ def append_history(args: argparse.Namespace) -> None:
 
 
 def reindex(args: argparse.Namespace) -> None:
-    collection: str | None = None
+    # Explicit --collection wins: callers that already know the collection (e.g. the
+    # reindex hooks, which read it from a dirty marker) skip cwd/git resolution — the
+    # cwd may not map to the dirty collection, and KB collections have no git repo.
+    collection: str | None = getattr(args, "collection", None)
     root = getattr(args, "root", None)
-    if root:
+    if not collection and root:
         repo = current_git_root()
         if repo:
             data = parse_collections(expand(root) / ".memory-bank" / "collections.yaml")
@@ -653,16 +656,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run qmd update and qmd embed",
         description=(
             "Runs `qmd update` then `qmd embed`. "
-            "With --memory-root and from inside a git repo, resolves the current project "
-            "collection and scopes embed to it (qmd embed -c <collection>). "
-            "Without --memory-root, rebuilds all collections globally. "
+            "With --collection, scopes embed to that collection directly (qmd embed -c <name>) — "
+            "no cwd/git resolution. Otherwise, with --memory-root and from inside a git repo, "
+            "resolves the current project collection and scopes embed to it. "
+            "With neither, rebuilds all collections globally. "
             "Does not accept --project or --repo — project is auto-detected from the git root."
         ),
     )
     p.add_argument(
+        "--collection", "-c", dest="collection", required=False, default=None,
+        help="Scope embed to this exact qmd collection, bypassing cwd/git resolution. "
+             "Used by the reindex hooks, which read the dirty collection from a marker.",
+    )
+    p.add_argument(
         "--memory-root", "--root", dest="root", required=False, default=None,
         help="Memory bank root (e.g. ~/memory/task-memory-bank). "
-             "When provided, scopes embed to the current git repo's collection.",
+             "When provided (and --collection is not), scopes embed to the current git repo's collection.",
     )
     p.set_defaults(func=reindex)
 

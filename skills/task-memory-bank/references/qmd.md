@@ -52,10 +52,19 @@ known paths: projects/agent-skills/work/tasks/TASK-0042-fix-saved-filter-state/a
 
 ## Reindex
 
-After structured writes, route through `memory_bank.py` — do not call `qmd embed` directly:
+Reindexing is normally automatic via the reindex lifecycle hooks (a `PostToolUse` detector marks the
+edited collection dirty; `UserPromptSubmit` / `SessionEnd` / `SessionStart` flush it once the turn's
+diff-review window closes). **Do not reindex inline mid-turn** — see the SKILL.md Core Rules and
+`docs/task-memory-bank-reindex-hooks.md`.
+
+If the hooks are not installed, route through `memory_bank.py` at the **end** of the turn — do not
+call `qmd embed` directly:
 
 ```bash
-python3 <skill-dir>/scripts/memory_bank.py reindex
+python3 <skill-dir>/scripts/memory_bank.py reindex --collection <name>
 ```
 
-This resolves the project collection from `collections.yaml` and scopes embedding to the current project, avoiding a full rebuild. If reindex fails, keep the markdown writes and report the failure.
+`--collection <name>` scopes `qmd embed -c <name>` directly (what the hooks pass). Omitting it falls
+back to resolving the collection from the current git repo; with neither, all collections rebuild
+globally. `qmd update` always runs first (it has no per-collection flag, but it is a cheap
+change-scan). If reindex fails, keep the markdown writes and report the failure.
