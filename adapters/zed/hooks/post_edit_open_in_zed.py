@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
+"""PostToolUse hook: record an edited file in the turn's Zed diff manifest.
+
+Diffs no longer open per edit — opening fronts Zed (the 1.9.0 CLI always activates,
+with no open-without-activate flag), which steals focus on every write and can
+misroute keystrokes into Zed while the user types elsewhere. Instead each edited
+file is queued in a per-(session, file) marker; the Stop hook flushes the whole
+turn into one multi-diff. This hook just drops the marker (created here so that
+Write-created new files, which don't exist at PreToolUse time, still get queued).
+"""
 import json
 import os
-import subprocess
 import sys
-import time
 
-from _zed_common import gen_path, pointer_path, resolve_zed
+from _zed_common import seen_marker
 
 
 def main():
@@ -20,68 +27,13 @@ def main():
     if not file_path:
         sys.exit(0)
 
-    pointer = pointer_path(file_path)
-    snapshot = open(pointer).read().strip() if os.path.isfile(pointer) else ""
-
-    zed = resolve_zed()
-    if not zed:
-        print(
-            "[Zed] `zed` CLI not found on PATH or in /Applications/Zed.app — "
-            "diff pane skipped. Fix: in Zed run command palette → `cli: install`, "
-            "or `brew install --cask zed`. Verify with `zed --version`.",
-            file=sys.stderr,
-        )
-        # Exit 1 so the first stderr line surfaces to the user as a hook-error
-        # notice. Exit 0 would bury it in transcript-only output; exit 2 routes
-        # it to Claude rather than the user. The tool already ran — nothing blocks.
-        sys.exit(1)
-
-    # `-a`/`--add` opens the diff in the currently focused workspace instead of
-    # letting Zed pick a window by its own heuristic. Without it, a diff on a file
-    # OUTSIDE the focused project (e.g. a task-memory-bank file, or a cross-package
-    # edit in a multi-repo workspace) makes Zed reuse some other workspace and swap
-    # the active window's project. `-a` pins the diff to the focused window and
-    # preserves its root; in-project diffs were never affected. Verified against
-    # Zed 1.9.0, including concurrent multi-file bursts.
-    #
-    # Both branches use `--diff` so the path opens as a diff buffer, never a
-    # project worktree. A bare `zed -a <path>` (new file, no snapshot) attaches
-    # the out-of-project path to the focused workspace as a loose worktree and
-    # bloats its recent-projects entry; `--diff` operands do not. New files have
-    # no prior snapshot, so we diff them against an empty base (`/dev/null`) —
-    # the whole file renders as additions. Verified clean against Zed 1.9.0.
-    base = snapshot if snapshot and os.path.isfile(snapshot) else os.devnull
-    subprocess.Popen(
-        [zed, "-a", "--diff", base, file_path],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    subprocess.run(
-        ["osascript", "-e", 'tell application "Zed" to activate'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    tmux_pane = os.environ.get("TMUX_PANE")
-    if tmux_pane and snapshot and os.path.isfile(snapshot):
-        gen_token = str(time.time())
-        gen_file = gen_path(file_path)
-        with open(gen_file, "w") as f:
-            f.write(gen_token)
-        subprocess.Popen(
-            [
-                "python3",
-                os.path.join(os.path.dirname(__file__), "tmux_diff_injector.py"),
-                file_path,
-                snapshot,
-                tmux_pane,
-                gen_token,
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-    # Snapshot left in /tmp — PreToolUse overwrites it on the next edit to the same file
+    session_id = event.get("session_id", "")
+    # Marker contents = the file path, so the Stop hook enumerates the turn's edited
+    # files from the session's markers alone. Its existence also tells the pre-hook
+    # the turn-start base is already captured (keep the first snapshot). Rewritten
+    # every edit (cheap, idempotent).
+    with open(seen_marker(session_id, file_path), "w") as f:
+        f.write(file_path)
 
 
 if __name__ == "__main__":

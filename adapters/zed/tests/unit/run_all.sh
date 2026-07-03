@@ -9,3 +9,11 @@ bash "$DIR/test_pre_hook.sh"
 echo ""
 echo "=== post_edit_open_in_zed.py ==="
 bash "$DIR/test_post_hook.sh"
+
+echo ""
+echo "=== reset_zed_turn.py ==="
+bash "$DIR/test_reset_hook.sh"
+
+echo ""
+echo "=== stop_flush_zed_diffs.py ==="
+bash "$DIR/test_stop_hook.sh"
