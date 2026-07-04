@@ -64,6 +64,20 @@ Diffs are batched per CC turn (one turn = one user prompt) and flushed on the `S
 
 If CC is running inside `tmux` (terminal thread → `tmux` → `claude`), the Stop hook also starts a background watcher for each changed file that has a snapshot. When you save your edits in Zed (Cmd+S), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed.
 
+## Maintenance: stray memory-bank root in the project panel
+
+Zed persists every folder it has opened as a root (in its workspace DB and `trusted_worktrees`) and **replays them on session-restore**. If an out-of-project directory — e.g. a task-memory-bank folder — was ever opened as a root by older tooling, it can keep reappearing as an extra root in the project panel after a restart, even though the current diff hook never adds it (the hook opens paths as diff buffers, not folders).
+
+This is persisted residue, not a live recurrence. To clear it:
+
+```bash
+# Quit Zed first (Cmd+Q) — the DB is locked while Zed runs.
+python3 adapters/zed/prune_stale_roots.py           # dry run: show what would be pruned
+python3 adapters/zed/prune_stale_roots.py --apply    # back up the DB, then prune
+```
+
+The script only removes roots that are memory-bank residue or dead paths (directories no longer on disk); real project roots are left untouched. It refuses to run while Zed is open and backs up the DB before any change.
+
 ## UX
 
 - **Accept** — do nothing, CC has already moved on.
