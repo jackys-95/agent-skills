@@ -1,8 +1,9 @@
 # Zed diff hooks — turn lifecycle and marker reconciliation
 
 **Status:** proposed — spec for the interrupted/failed-turn flush work (and boundary input to the
-settled-state reindex review-window protocol)
-**Date:** 2026-07-03
+settled-state reindex review-window protocol). §6 open questions resolved by live probes
+(2026-07-04); ready to implement.
+**Date:** 2026-07-03 (probe results 2026-07-04)
 **Component:** zed-cc adapter hooks (`adapters/zed/hooks/`) — `pre_edit_zed_snapshot.py`,
 `post_edit_open_in_zed.py`, `reset_zed_turn.py`, `stop_flush_zed_diffs.py`, `revert_zed_snapshot.py`
 
@@ -142,15 +143,29 @@ the review-window protocol's problem — this spec only commits to not deleting 
 protocol should reuse the marker stamping from §4.1 rather than introduce a second turn-identity
 mechanism.
 
-## 6. Open questions
+## 6. Open questions — resolved (live probes, 2026-07-04)
 
-1. Does a steering message delivered into a running loop change `prompt_id` mid-turn? If yes, the
-   §4.1 comparison splits a steered turn into two virtual turns — benign for revert (extra
-   snapshot, narrower revert), but the diff batch would also split. Needs a live probe.
-2. Do subagent hook events carry the parent's `prompt_id` or none? Determines whether a background
-   agent's edits stamp markers that the parent's next turn correctly treats as stale.
-3. `StopFailure` payload: confirm it carries `session_id` (assumed; its output is ignored but side
-   effects run).
+All three probed black-box on CC 2.1.201. Method: raw-payload logging injected into the
+already-registered `PreToolUse` hook script (hook *configuration* is snapshotted at session start,
+but script bodies are read at exec time, so no restart was needed), plus a headless scratch
+session (`claude -p --settings …`) with a `StopFailure` logging hook and a nonexistent model to
+force an API error. Instrumentation removed after capture; hook verified byte-identical to its
+pre-probe backup.
+
+1. **Steering does not change `prompt_id`.** Writes before and after a steering message delivered
+   into the running loop carried the same `prompt_id`. A steered turn is one virtual turn: the
+   §4.1 comparison does not split it, the diff batch stays whole, and revert restores the turn's
+   true start. Caveat: the interrupt-then-steer hybrid (§3 damage-B row) was not probed directly,
+   but §4.1 is safe under either outcome — same id ⇒ the span is one extended turn whose diff and
+   revert agree on the last clean boundary as base; new id ⇒ marker mismatch ⇒ fresh base.
+2. **Subagent hook events carry the parent's `prompt_id`** (and the parent's `session_id`), plus
+   `agent_id` and `agent_type`. A background agent's markers are stamped with the prompt that
+   launched it, so the next user turn's differing id invalidates them. No subagent special-casing.
+3. **`StopFailure` carries `session_id` and `prompt_id`** — richer than assumed — plus `error`,
+   `last_assistant_message`, `transcript_path`, and `cwd`. The recovery flush registered on
+   `StopFailure` gets full turn identity, same as `Stop`.
+
+Net: no design changes; §4 stands as written.
 
 ## 7. Non-goals
 
