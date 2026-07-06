@@ -6,9 +6,11 @@ Opens a diff view in Zed for the files the agent changed. Diffs are **batched pe
 
 ## Requirements
 
-- macOS
+- macOS or Linux
 - [Zed](https://zed.dev) with the `zed` CLI in PATH (`zed --version` to verify)
-- [fswatch](https://github.com/emcrisostomo/fswatch) for edit injection (`brew install fswatch`)
+- A file watcher for edit injection:
+  - macOS: [fswatch](https://github.com/emcrisostomo/fswatch) (`brew install fswatch`)
+  - Linux: inotify-tools (`sudo apt install inotify-tools` or your distro's equivalent)
 
 ## Install
 
@@ -71,7 +73,7 @@ Zed persists every folder it has opened as a root (in its workspace DB and `trus
 This is persisted residue, not a live recurrence. To clear it:
 
 ```bash
-# Quit Zed first (Cmd+Q) — the DB is locked while Zed runs.
+# Quit Zed first (Cmd+Q on macOS) — the DB is locked while Zed runs.
 python3 adapters/zed/prune_stale_roots.py           # dry run: show what would be pruned
 python3 adapters/zed/prune_stale_roots.py --apply    # back up the DB, then prune
 ```

@@ -21,10 +21,15 @@ from hook_install import install_hook, load_settings, save_settings  # noqa: E40
 HOOKS_DIR = pathlib.Path(__file__).parent / "hooks"
 ADAPTER_CLAUDE_MD = pathlib.Path(__file__).parent / "CLAUDE.md"
 
-# Zed bundles its CLI inside the .app; a Homebrew cask install symlinks it onto
-# PATH, but a direct .app download does not unless you run `cli: install`.
-# The post-edit hook calls `zed -a --diff` and fails silently if it's missing.
-BUNDLED_ZED_CLI = pathlib.Path("/Applications/Zed.app/Contents/MacOS/cli")
+# Fallback CLI location per platform. macOS: Zed bundles its CLI inside the .app;
+# a Homebrew cask install symlinks it onto PATH, but a direct .app download does
+# not unless you run `cli: install`. Linux: the official install script places the
+# CLI at ~/.local/bin/zed. The post-edit hook calls `zed -a --diff` and fails
+# silently if it's missing.
+BUNDLED_ZED_CLI = {
+    "darwin": pathlib.Path("/Applications/Zed.app/Contents/MacOS/cli"),
+    "linux": pathlib.Path.home() / ".local" / "bin" / "zed",
+}.get(sys.platform)
 
 # Claude Code global config
 CLAUDE_SETTINGS = pathlib.Path.home() / ".claude" / "settings.json"
@@ -120,13 +125,16 @@ def check_zed_cli():
     print("\n⚠️  The `zed` CLI is not on your PATH.")
     print("   The post-edit hook runs `zed -a --diff` to open the review pane; without")
     print("   the CLI it fails silently and no diff appears.\n")
-    if BUNDLED_ZED_CLI.exists():
-        print("   Zed is installed, but its CLI isn't linked. Fix it with either:")
+    if BUNDLED_ZED_CLI and BUNDLED_ZED_CLI.exists():
+        print("   Zed is installed, but its CLI isn't on PATH. Fix it with either:")
         print("     • In Zed: command palette → `cli: install`")
         print(f"     • Shell:  ln -s {BUNDLED_ZED_CLI} /usr/local/bin/zed")
-    else:
+    elif sys.platform == "darwin":
         print("   Install Zed (https://zed.dev) and then run its `cli: install` command,")
         print("   or `brew install --cask zed` which links the CLI for you.")
+    else:
+        print("   Install Zed for Linux (https://zed.dev/docs/linux) and make sure")
+        print("   ~/.local/bin is on your PATH.")
     print("   Verify with: zed --version\n")
     return False
 

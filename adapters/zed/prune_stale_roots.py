@@ -22,7 +22,7 @@ Usage:
     python3 prune_stale_roots.py            # dry run: show what would be pruned
     python3 prune_stale_roots.py --apply    # back up, then prune
 
-Quit Zed (Cmd+Q) before running with --apply.
+Quit Zed before running with --apply.
 """
 
 from __future__ import annotations
@@ -39,15 +39,12 @@ from pathlib import Path
 # A root under any of these path segments is memory-bank residue, not a project.
 MEMORY_BANK_MARKERS = ("/memory/task-memory-bank/", "/task-memory-bank/")
 
-DEFAULT_DB = (
-    Path.home()
-    / "Library"
-    / "Application Support"
-    / "Zed"
-    / "db"
-    / "0-stable"
-    / "db.sqlite"
-)
+if sys.platform == "darwin":
+    _ZED_DATA_DIR = Path.home() / "Library" / "Application Support" / "Zed"
+else:
+    _ZED_DATA_DIR = Path.home() / ".local" / "share" / "zed"
+
+DEFAULT_DB = _ZED_DATA_DIR / "db" / "0-stable" / "db.sqlite"
 
 
 def zed_is_running() -> bool:
