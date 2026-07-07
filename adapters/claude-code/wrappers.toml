@@ -6,6 +6,10 @@ canonical_skill_source = "skills/task-memory-bank"
 name = "query-kb"
 source = "skills/query-kb"
 
+[[skills]]
+name = "knowledge-files"
+source = "skills/knowledge-files"
+
 [[wrappers]]
 name = "memory-init-project"
 workflow = "memory.init-project"
