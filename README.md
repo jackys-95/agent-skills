@@ -10,6 +10,7 @@ macOS is the primary supported platform. Linux support is planned but not yet im
 
 - [task-memory-bank](skills/task-memory-bank/SKILL.md): qmd-backed project/task memory bank workflows.
 - [query-kb](skills/query-kb/SKILL.md): qmd-backed knowledge base retrieval (knowledge files + learning primers); delegates task scope to task-memory-bank.
+- [knowledge-files](skills/knowledge-files/SKILL.md): qmd-backed knowledge file authoring (classify, split into per-entity files, cross-reference, promote learning → knowledge); the write side of the knowledge base.
 
 ## Install For Codex
 
@@ -46,7 +47,7 @@ Install the skills plus generated `/memory-*` wrappers with:
 python3 scripts/install_claude_code.py
 ```
 
-The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`), installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skills remain the source of truth.
+The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`, `skills/knowledge-files`), installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skills remain the source of truth.
 
 **query-kb setup:** query-kb reads a git-ignored `registry.yaml` at its skill root listing the knowledge/learning collections to search. After installing, copy the template and fill in your real collection names:
 
