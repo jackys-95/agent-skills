@@ -77,6 +77,13 @@ def install_canonical_skills(
         install_wrapper(wrapper, template, target_root, canonical_skill_path, dry_run)
 
 
+def install_plain_skills(manifest: dict, target_root: Path, dry_run: bool) -> None:
+    """Copy plain skills (no generated wrappers) verbatim to the CC skills dir."""
+    for skill in manifest.get("skills", []):
+        source = REPO_ROOT / skill["source"]
+        copy_skill("plain", source, target_root / skill["name"], dry_run)
+
+
 def install_wrapper(
     wrapper: dict[str, str],
     template: str,
@@ -197,6 +204,7 @@ def main() -> int:
     )
 
     install_canonical_skills(manifest, template, target_root, args.dry_run)
+    install_plain_skills(manifest, target_root, args.dry_run)
     install_qmd_skill(args.dry_run)
     install_reindex_hooks(args.dry_run)
     install_claude_md(

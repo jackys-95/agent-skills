@@ -3,3 +3,6 @@ __pycache__/
 .idea/
 .vscode/
 
+# query-kb local registry — real collection names stay local (see skills/query-kb/assets/registry.example.yaml)
+skills/query-kb/registry.yaml
+
