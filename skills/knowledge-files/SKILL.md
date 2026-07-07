@@ -48,6 +48,9 @@ The full model (SOLID mapping, file skeletons, sizing heuristics) is in
   stays in the `learning` tier until promoted. Do not author speculative content as knowledge.
 - **Respect scope boundaries** — do not restate content owned by another system's source of truth;
   link to it (see [references/classification.md](references/classification.md)).
+- **Soft-wrap prose — one line per paragraph, never hard-wrap mid-sentence**, and keep a blank line
+  between a heading and its body. Hard wraps render as stray newlines and break phrase/link greps.
+  See [references/authoring-principles.md](references/authoring-principles.md).
 - **Reindex after every write or promotion** — a file that isn't indexed can't be retrieved. This
   skill owns the obligation; the mechanic is in /qmd. Note: the task-memory-bank `reindex` script
   does **not** cover knowledge/learning collections — reindex those directly via qmd.
