@@ -55,6 +55,23 @@ An atom is **as small as the smallest thing with a stable, independent identity 
 Don't shatter a cohesive concept into fragments that are never useful alone; that breaks cohesion
 just as God-docs break SRP.
 
+## Prose formatting (line convention)
+
+Author body prose as **one logical line per paragraph — soft-wrap, never hard-wrap.** Do not insert
+newlines mid-sentence to hit a column width. Rationale: the knowledge corpus is soft-wrapped, so
+hard wraps produce mid-sentence line breaks that render as stray newlines, bloat diffs, and break
+phrase/`[[link]]` greps that span a wrap.
+
+- **Paragraphs** — one line each; let the editor wrap for display.
+- **List items** — one line each (a bullet may hold a long sentence; don't wrap it).
+- **Blank line between blocks** — always separate a heading from the paragraph beneath it, and
+  separate paragraphs/lists, with a blank line. (A heading glued to the next line of prose is the
+  inverse failure — equally wrong.)
+- **Tables, code fences, frontmatter** — leave as-is; this rule is about prose only.
+
+> If you catch yourself reflowing an existing file's wrapping, stop — match the file's existing
+> convention (which is soft-wrap) rather than re-wrapping it.
+
 ## File contracts (LSP)
 
 ### Entity atom
