@@ -12,21 +12,42 @@ macOS is the primary supported platform. Linux support is planned but not yet im
 - [query-kb](skills/query-kb/SKILL.md): qmd-backed knowledge base retrieval (knowledge files + learning primers); delegates task scope to task-memory-bank.
 - [knowledge-files](skills/knowledge-files/SKILL.md): qmd-backed knowledge file authoring (classify, split into per-entity files, cross-reference, promote learning → knowledge); the write side of the knowledge base.
 
-## Install For Codex
+## Tests
 
-This repository is the source of truth for authored skills. To make a skill
-available to Codex locally, install it into the shared local agent skills
-directory:
+Run installer unit tests with:
 
 ```bash
-mkdir -p ~/.agents/skills/task-memory-bank
-cp -R skills/task-memory-bank/. ~/.agents/skills/task-memory-bank/
+python3 -m unittest discover -s scripts -p 'test_*.py'
+```
+
+## Install For Codex
+
+This repository is the source of truth for authored skills. Install the Codex
+adapter into the shared local agent skills directory with:
+
+```bash
+python3 scripts/install_codex.py
 ```
 
 Codex discovers installed skills from:
 
 ```text
 ~/.agents/skills/<skill-name>/SKILL.md
+```
+
+The installer copies `skills/task-memory-bank`, renders `memory-*` wrapper
+skills from the Codex adapter manifest, copies plain skills listed in the
+manifest (`skills/query-kb`, `skills/knowledge-files`), and installs the qmd
+skill dependency when possible. It also upserts tagged Codex guidance into
+`~/.codex/AGENTS.md`. It does not install Codex hooks yet; use the
+`memory-reindex` wrapper as the manual fallback after memory-bank edits.
+
+**query-kb setup:** query-kb reads a git-ignored `registry.yaml` at its skill
+root listing the knowledge/learning collections to search. After installing,
+copy the template and fill in your real collection names:
+
+```bash
+cp ~/.agents/skills/query-kb/assets/registry.example.yaml ~/.agents/skills/query-kb/registry.yaml
 ```
 
 This is a local Codex/agent convention, not a cross-agent standard. Keep

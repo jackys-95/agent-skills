@@ -1,0 +1,21 @@
+---
+name: {{name}}
+description: {{description}}
+argument-hint: "{{argument_hint}}"
+---
+
+<!-- Generated from adapters/codex. Do not edit the installed copy by hand. -->
+
+Run canonical task-memory-bank workflow `{{workflow}}` for the user's arguments.
+
+First read and follow `{{canonical_skill_path}}`. Then apply this wrapper's
+workflow-specific instruction:
+
+{{body}}
+
+Do not create a Codex-specific memory format. If workflow behavior needs to
+change, update the canonical task-memory-bank skill, its references, or
+`memory_bank.py` first.
+
+Use qmd tools or qmd CLI for memory-bank retrieval. Do not explore or search the
+memory bank with filesystem tools.
