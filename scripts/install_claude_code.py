@@ -4,19 +4,19 @@
 from __future__ import annotations
 
 import argparse
-import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 # Adapter-neutral hook-registration helpers (same scripts/ dir).
 from hook_install import install_hook, load_settings, save_settings
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
-    tomllib = None
+from install_common import (
+    install_canonical_skills,
+    install_plain_skills,
+    install_qmd_skill,
+    install_tagged_blocks,
+    load_manifest,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -38,120 +38,8 @@ REINDEX_HOOKS = [
 REINDEX_SUPPORT = ["_reindex_common.py"]
 
 
-def load_manifest(path: Path) -> dict:
-    if tomllib is None:
-        raise SystemExit("Python 3.11+ is required to read wrappers.toml")
-    with path.open("rb") as handle:
-        return tomllib.load(handle)
-
-
-def copy_skill(skill_type: str, source: Path, target: Path, dry_run: bool) -> None:
-    print(f"Install {skill_type} skill: {source} -> {target}")
-    if dry_run:
-        return
-    try:
-        shutil.copytree(source, target, dirs_exist_ok=True, copy_function=shutil.copy)
-    except FileNotFoundError:
-        raise SystemExit(f"Missing {skill_type} skill source: {source}")
-
-
-def render(template: str, values: dict[str, str]) -> str:
-    rendered = template
-    for key, value in values.items():
-        rendered = rendered.replace("{{" + key + "}}", value)
-    return rendered.rstrip() + "\n"
-
-
-def install_canonical_skills(
-    manifest: dict,
-    template: str,
-    target_root: Path,
-    dry_run: bool,
-) -> None:
-    canonical_name = manifest["canonical_skill"]
-    canonical_source = REPO_ROOT / manifest["canonical_skill_source"]
-    copy_skill("canonical", canonical_source, target_root / canonical_name, dry_run)
-
-    canonical_skill_path = f"{canonical_name}/SKILL.md"
-    for wrapper in manifest["wrappers"]:
-        install_wrapper(wrapper, template, target_root, canonical_skill_path, dry_run)
-
-
-def install_plain_skills(manifest: dict, target_root: Path, dry_run: bool) -> None:
-    """Copy plain skills (no generated wrappers) verbatim to the CC skills dir."""
-    for skill in manifest.get("skills", []):
-        source = REPO_ROOT / skill["source"]
-        copy_skill("plain", source, target_root / skill["name"], dry_run)
-
-
-def install_wrapper(
-    wrapper: dict[str, str],
-    template: str,
-    target_root: Path,
-    canonical_skill_path: str,
-    dry_run: bool,
-) -> None:
-    name = wrapper["name"]
-    target = target_root / name / "SKILL.md"
-    values = {
-        "name": name,
-        "description": wrapper["description"],
-        "argument_hint": wrapper["argument_hint"],
-        "workflow": wrapper["workflow"],
-        "body": wrapper["body"],
-        "canonical_skill_path": canonical_skill_path,
-    }
-    content = render(template, values)
-    print(f"Install wrapper: {target}")
-    if dry_run:
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-
-
 def install_claude_md(source: Path, target: Path, dry_run: bool) -> None:
-    """Upsert tagged blocks from source into target, preserving surrounding content."""
-    source_text = source.read_text(encoding="utf-8")
-    block_re = re.compile(r"(<!-- (\S+) -->.*?<!-- \2 -->)", re.DOTALL)
-    blocks = block_re.findall(source_text)
-    if not blocks:
-        return
-
-    target_text = target.read_text(encoding="utf-8") if target.exists() else ""
-    for block_content, tag in blocks:
-        existing = re.compile(
-            r"<!-- " + re.escape(tag) + r" -->.*?<!-- " + re.escape(tag) + r" -->",
-            re.DOTALL,
-        )
-        if existing.search(target_text):
-            target_text = existing.sub(block_content, target_text)
-        else:
-            target_text = target_text.rstrip("\n") + "\n\n" + block_content + "\n"
-
-    print(f"Install CLAUDE.md blocks: {target}")
-    if dry_run:
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(target_text, encoding="utf-8")
-
-
-def install_qmd_skill(dry_run: bool) -> None:
-    qmd = shutil.which("qmd")
-    if not qmd:
-        pm = "bun" if shutil.which("bun") else "npm"
-        print(f"qmd not found — installing via {pm}...")
-        if not dry_run:
-            subprocess.run([pm, "install", "-g", "@tobilu/qmd"], check=True)
-    cmd = ["qmd", "skill", "install", "--global", "--yes"]
-    print(f"Install qmd skill: {' '.join(cmd)}")
-    if not dry_run:
-        # `qmd skill install` exits non-zero when the skill already exists (idempotent
-        # re-run). That is not a failure worth aborting the whole install for — and
-        # aborting here would skip everything after (e.g. the reindex hooks). Report
-        # the outcome instead of raising.
-        result = subprocess.run(cmd)
-        if result.returncode != 0:
-            print("  (qmd skill already installed or install skipped — continuing)")
+    install_tagged_blocks(source, target, dry_run, "CLAUDE.md")
 
 
 def install_reindex_hooks(dry_run: bool) -> None:
@@ -203,8 +91,14 @@ def main() -> int:
         encoding="utf-8"
     )
 
-    install_canonical_skills(manifest, template, target_root, args.dry_run)
-    install_plain_skills(manifest, target_root, args.dry_run)
+    install_canonical_skills(
+        REPO_ROOT,
+        manifest,
+        template,
+        target_root,
+        args.dry_run,
+    )
+    install_plain_skills(REPO_ROOT, manifest, target_root, args.dry_run)
     install_qmd_skill(args.dry_run)
     install_reindex_hooks(args.dry_run)
     install_claude_md(
