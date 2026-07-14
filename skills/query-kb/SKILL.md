@@ -50,13 +50,15 @@ classifying each by `contains` (knowledge | learning) and `domain` (program/grou
 tag). It intentionally omits task collections and physical layout (path/pattern) — those are owned
 by tmb and by qmd's `index.yml` respectively.
 
-`registry.yaml` lives at the skill root and is **git-ignored** — collection names can encode
-internal identifiers, so the real registry stays on your machine. The repo ships
-[`assets/registry.example.yaml`](assets/registry.example.yaml) as a template; copy it to
-`registry.yaml` at the skill root and fill in your real collection names:
+`registry.yaml` lives at **`${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml`** — beside qmd's own `index.yml`, not at the skill root. This is deliberately **harness-neutral**: every harness installs its own skill copy (Claude Code `~/.claude/skills/query-kb/`, Codex `~/.agents/skills/query-kb/`), so a registry at the skill root would be visible to only one of them. qmd is the shared substrate all harnesses call, so one registry beside `index.yml` serves them all. The file is **git-ignored** by nature of living outside the repo — collection names can
+encode internal identifiers, so the real registry stays on your machine.
+
+The registry has an **authoring-driven origin**: it is born and grown by the
+[knowledge-files](../knowledge-files/SKILL.md) skill, which appends a `contains`/`domain` entry whenever it creates a new knowledge/learning collection (a human `qmd collection add` plus a hand-edited line works too). Nothing seeds it at install time. To bootstrap by hand, the repo ships [`assets/registry.example.yaml`](assets/registry.example.yaml) as a schema reference you can copy and fill in:
 
 ```bash
-cp assets/registry.example.yaml registry.yaml
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/qmd"
+cp assets/registry.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/qmd/registry.yaml"
 ```
 
 Read the registry to resolve a scope request into a concrete set of collections to search.
@@ -123,8 +125,7 @@ qmd query -c <knowledge-collection> -c <learning-collection> --min-score 0.5 \
   $'intent: what am I actually looking for\nlex: exact keywords\nvec: natural-language question'
 ```
 
-Collection names come from your local `registry.yaml`. Scope each collection in explicitly;
-omitting scope searches everything.
+Collection names come from your `registry.yaml` at `~/.config/qmd/registry.yaml`. Scope each collection in explicitly; omitting scope searches everything.
 
 ## After Retrieving
 
