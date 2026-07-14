@@ -64,7 +64,10 @@ The full model (SOLID mapping, file skeletons, sizing heuristics) is in
    [references/authoring-principles.md](references/authoring-principles.md).
 3. **Write to the contract** — entity-atom skeleton; fill Definition, Boundaries, Relationships.
 4. **Cross-reference** — bidirectional links to related atoms.
-5. **Reindex** — via /qmd, scoped to the knowledge collection. Verify retrievable.
+5. **Register the collection (only if this is a new collection)** — if the file lands in a knowledge/learning collection that does not yet exist, register it in **both** catalogs so it is indexable *and* discoverable by query-kb:
+   - qmd's `index.yml` — its `path`/`pattern`, via `qmd collection add` (mechanics in /qmd).
+   - query-kb's registry at **`${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml`** — append a `contains` (`knowledge` | `learning`) + `domain` entry keyed by the same collection name. This is the registry's authoring-driven origin: create the file if it does not exist yet. See [references/classification.md](references/classification.md) for the field meanings. Skip this step when appending to a collection that is already registered.
+6. **Reindex** — via /qmd, scoped to the knowledge collection. Verify retrievable.
 
 ### Promote learning → knowledge
 Follow [references/promotion.md](references/promotion.md): decompose the primer into atoms,

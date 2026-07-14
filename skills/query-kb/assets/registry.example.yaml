@@ -1,8 +1,17 @@
-# query-kb registry — knowledge-base collections catalog (EXAMPLE / TEMPLATE)
+# query-kb registry — knowledge-base collections catalog (EXAMPLE / SCHEMA REFERENCE)
 #
-# Copy this to the skill root as registry.yaml (git-ignored) and fill in your real
-# collection names:  cp assets/registry.example.yaml registry.yaml
-# Do NOT commit real collection names to this shared repo — collection names can encode
+# This is a schema reference, not the live file. The real registry lives at a
+# harness-neutral location beside qmd's own config, so every harness's skill copy
+# reads one shared file:
+#
+#     ${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml
+#
+# It is normally born and grown by the knowledge-files authoring skill, which appends
+# an entry whenever it creates a new collection. To bootstrap by hand instead:
+#     mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/qmd"
+#     cp assets/registry.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/qmd/registry.yaml"
+#
+# The live file is outside the repo (never committed) — collection names can encode
 # internal program/project identifiers that must stay local, the same way task-memory-bank
 # identifiers stay local (see repo CLAUDE.md).
 #

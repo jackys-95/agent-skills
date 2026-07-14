@@ -137,7 +137,7 @@ alone:
 | Registry | Owner | Holds | Does NOT hold |
 |---|---|---|---|
 | `~/memory/task-memory-bank/.memory-bank/collections.yaml` | tmb skill | tmb **project** collections + paths | KB collections |
-| `~/.claude/skills/query-kb/registry.yaml` | query-kb skill | KB **classification** (`contains`/`domain`) | paths/patterns (delegates to qmd); tmb collections |
+| `~/.config/qmd/registry.yaml` | query-kb skill | KB **classification** (`contains`/`domain`) | paths/patterns (delegates to qmd); tmb collections |
 | **`~/.config/qmd/index.yml`** | qmd | **every** collection's `path` + `pattern` | classification |
 
 Reading a *skill* registry instead would be wrong on two counts. First, neither skill registry holds
@@ -146,9 +146,7 @@ entirely (it delegates them to qmd). Second, registration is **asymmetric** and 
 
 - **tmb** collections: `init-project` only *prints* `qmd collection add` today (auto-registration is
   backlog **TASK-0004**).
-- **knowledge** collections: **no authoring/registration tooling at all** — query-kb is read-only, a
-  KB authoring skill is backlog **TASK-0010**. Today a KB collection is registered by a manual `qmd
-  collection add` plus a hand-edited line in query-kb's `registry.yaml`.
+- **knowledge** collections: registered by the `knowledge-files` authoring skill, whose new-collection workflow appends a `contains`/`domain` entry to query-kb's registry (at `~/.config/qmd/registry.yaml`) alongside a `qmd collection add` for the path. A human `qmd collection add` plus a hand-edited registry line also works.
 
 A human `qmd collection add` bypasses any skill anyway — but every path **rewrites
 `~/.config/qmd/index.yml`**. So reading `index.yml` directly is the one source that stays correct

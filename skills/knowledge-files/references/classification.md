@@ -29,6 +29,20 @@ service, or initiative you'd scope "everything about X" to. Product membership i
 `domain:` tag**, not a parent folder. This is what query-kb's registry filters on to pick *which
 collections* to fan out over.
 
+### Registering a new collection
+
+When you create a **new** knowledge/learning collection (not just a new file in an existing one),
+record it in query-kb's registry so retrieval can scope to it. The registry lives at a harness-neutral path beside qmd's own config — **`${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml`** — so every harness's skill copy reads the same file. Append an entry keyed by the collection name:
+
+```yaml
+collections:
+  <collection-name>:
+    contains: knowledge   # or: learning
+    domain: <product-tag> # omit or use `default` for cross-cutting collections
+```
+
+`contains` drives query-kb's scope selector (knowledge vs learning); `domain` is the product tag above. Create the file if it does not exist — this authoring step is the registry's origin. Do **not** put `path`/`pattern` here; those belong to qmd's `index.yml` (`qmd collection add`) and would drift if duplicated.
+
 > ⚠️ The key is spelled `domain:` (for registry-historical reasons), but it is the **product**
 > axis — it has nothing to do with the `Domain/` placement folder above. A `Technical/` file and a
 > `Domain/` file can both carry the same `domain:` product tag.

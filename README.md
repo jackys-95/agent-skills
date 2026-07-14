@@ -42,12 +42,11 @@ skill dependency when possible. It also upserts tagged Codex guidance into
 `~/.codex/AGENTS.md`. It does not install Codex hooks yet; use the
 `memory-reindex` wrapper as the manual fallback after memory-bank edits.
 
-**query-kb setup:** query-kb reads a git-ignored `registry.yaml` at its skill
-root listing the knowledge/learning collections to search. After installing,
-copy the template and fill in your real collection names:
+**query-kb setup:** query-kb reads a `registry.yaml` listing the knowledge/learning collections to search. It lives at a **harness-neutral** path beside qmd's own config — `${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml` — so every harness's skill copy reads one shared file. It is normally created and grown by the `knowledge-files` authoring skill when you add a collection; to bootstrap by hand, copy the schema reference and fill in your collection names:
 
 ```bash
-cp ~/.agents/skills/query-kb/assets/registry.example.yaml ~/.agents/skills/query-kb/registry.yaml
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/qmd"
+cp ~/.agents/skills/query-kb/assets/registry.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/qmd/registry.yaml"
 ```
 
 This is a local Codex/agent convention, not a cross-agent standard. Keep
@@ -70,10 +69,11 @@ python3 scripts/install_claude_code.py
 
 The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`, `skills/knowledge-files`), installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skills remain the source of truth.
 
-**query-kb setup:** query-kb reads a git-ignored `registry.yaml` at its skill root listing the knowledge/learning collections to search. After installing, copy the template and fill in your real collection names:
+**query-kb setup:** query-kb reads a `registry.yaml` listing the knowledge/learning collections to search. It lives at a **harness-neutral** path beside qmd's own config — `${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml` — so every harness's skill copy reads one shared file. It is normally created and grown by the `knowledge-files` authoring skill when you add a collection; to bootstrap by hand, copy the schema reference and fill in your collection names:
 
 ```bash
-cp ~/.claude/skills/query-kb/assets/registry.example.yaml ~/.claude/skills/query-kb/registry.yaml
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/qmd"
+cp ~/.claude/skills/query-kb/assets/registry.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/qmd/registry.yaml"
 ```
 
 **Prerequisite:** qmd is required for task-memory-bank to work. The installer handles this automatically; if you prefer to install manually:
