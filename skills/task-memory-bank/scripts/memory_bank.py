@@ -23,6 +23,65 @@ WORK_TYPES = {
     "spike": ("SPIKE", "spikes"),
 }
 
+# Closed, ordinal work-status vocabulary (design Decision 9). Replaces the
+# informal `active`/`open`/`setup` mix the script used to write. The ordinal is
+# lifecycle order — open → in-progress → blocked/paused → terminal — grouped to
+# match the design's four tiers; statuses in the same tier share a value so a
+# stable sort falls through to the next key. This supplies only the *type*: how
+# the resume ranker weights it (e.g. whether a stale in-progress outranks a fresh
+# open) is TASK-0003's concern, deliberately not decided here.
+WORK_STATUSES = (
+    "open",
+    "in-progress",
+    "blocked",
+    "paused",
+    "done",
+    "shipped",
+    "cancelled",
+    "superseded",
+)
+WORK_STATUS_ORDER = {
+    "open": 0,
+    "in-progress": 1,
+    "blocked": 2,
+    "paused": 2,
+    "done": 3,
+    "shipped": 3,
+    "cancelled": 3,
+    "superseded": 3,
+}
+TERMINAL_STATUSES = frozenset({"done", "shipped", "cancelled", "superseded"})
+
+# Workflow phase — a separate, non-ranking enum (design Decision 9), kept
+# distinct so "status" is never re-overloaded with workflow phase. Reconciles
+# two vocabulary defects: the script's stray `setup` (dropped) and `paused`
+# being listed as a phase in references/structure.md (it is a WorkStatus, not a
+# phase). `planned` is the plan-checkpoint state before design work begins.
+PHASES = (
+    "planned",
+    "design",
+    "specification",
+    "implementation",
+    "verification",
+    "handoff",
+)
+
+
+def validate_status(value: str) -> str:
+    if value not in WORK_STATUS_ORDER:
+        raise SystemExit(
+            f"Invalid work status {value!r}; expected one of: {', '.join(WORK_STATUSES)}"
+        )
+    return value
+
+
+def validate_phase(value: str) -> str:
+    if value not in PHASES:
+        raise SystemExit(
+            f"Invalid phase {value!r}; expected one of: {', '.join(PHASES)}"
+        )
+    return value
+
 
 def expand(path: str) -> Path:
     return Path(path).expanduser().resolve()
@@ -204,7 +263,7 @@ Establish project memory for {title}.
 
 ## Current Phase
 
-setup
+planned
 
 ## Current Focus
 
@@ -351,6 +410,33 @@ def next_id(work_root: Path, prefix: str) -> str:
     return f"{prefix}-{max_seen + 1:04d}"
 
 
+WORK_INDEX_HEADER = (
+    "# Work Index\n\n"
+    "| ID | Type | Status | Title | Created |\n"
+    "| --- | --- | --- | --- | --- |\n"
+)
+
+
+def append_work_index_row(pdir: Path, wid: str, work_type: str, status: str, title: str) -> None:
+    """Surface a work item's status in `work/index.md` (design Decision 9).
+
+    Appends one row, creating the file with a header if absent. Full
+    deterministic (re)generation of the index for ranking is TASK-0003; this
+    only keeps the flat status table current as items are created, matching the
+    manual step documented in references/workflows.md.
+    """
+    index = pdir / "work" / "index.md"
+    row = f"| {wid} | {work_type} | {status} | {title} | {today()} |\n"
+    if not index.exists():
+        index.parent.mkdir(parents=True, exist_ok=True)
+        index.write_text(WORK_INDEX_HEADER + row, encoding="utf-8")
+        return
+    current = index.read_text(encoding="utf-8")
+    if f"| {wid} |" in current:  # idempotent: do not duplicate an existing row
+        return
+    index.write_text(current.rstrip("\n") + "\n" + row, encoding="utf-8")
+
+
 def new_work(args: argparse.Namespace) -> None:
     root = expand(args.root)
     project = slugify(args.project)
@@ -367,6 +453,7 @@ def new_work(args: argparse.Namespace) -> None:
     wdir.mkdir(parents=True, exist_ok=True)
     (wdir / "history").mkdir(exist_ok=True)
 
+    status = validate_status(getattr(args, "status", None) or "open")
     domain_line = f"- Domain: `{args.domain}`" if args.domain else "- Domain:"
     write_new(
         wdir / "README.md",
@@ -374,7 +461,7 @@ def new_work(args: argparse.Namespace) -> None:
 
 ## Status
 
-active
+{status}
 
 ## Type
 
@@ -412,7 +499,7 @@ Describe the intended outcome.
 
 ## Current Phase
 
-setup
+planned
 
 ## Current Attempt
 
@@ -456,6 +543,7 @@ hyde: The active.md for {args.title} describes the current state, next actions, 
 {today()} by agent
 """,
     )
+    append_work_index_row(pdir, wid, work_type, status, args.title)
     print(f"Created {work_type}: {wdir}")
 
 
@@ -622,6 +710,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--title", required=True)
     p.add_argument("--id")
     p.add_argument("--domain")
+    p.add_argument(
+        "--status", choices=WORK_STATUSES, default="open",
+        help="Initial WorkStatus (default: open). Validated against the closed enum.",
+    )
     p.set_defaults(func=new_work)
 
     p = sub.add_parser("resolve-project", help="Resolve current or provided git repo to memory project")

@@ -85,6 +85,8 @@ projects/<project>/
 
 `work/index.md` is a flat ordered table of every work item (ID, type, status, title, date). It is the first place an agent should look when asking "what work exists?" — one `get` is faster than a broad keyword search across session history. Add a row when a work item is created; update the status field when it closes. Keep it append-only for new rows; update the status field in place for existing rows.
 
+A work item's **status** is a closed, ordinal vocabulary — `open`, `in-progress`, `blocked`, `paused`, `done`, `shipped`, `cancelled`, `superseded` — defined once in `memory_bank.py` (`WORK_STATUSES`) and validated on write by `new-work`. It is distinct from **phase** (below): status is lifecycle position and the signal the resume ranker sorts on; phase is where inside a single active item's workflow the work sits. `paused` is a status, never a phase. The four terminal statuses (`done`/`shipped`/`cancelled`/`superseded`) mean the item is closed.
+
 `overviews/decisions.md` routes to decision logs. Prefer linking to domain/work-item decisions instead of duplicating them.
 
 `domains/<domain>/README.md` is the entrypoint for a stable product/system slice. Add architecture, decisions, specs, and examples inside a domain only when needed.
@@ -136,7 +138,7 @@ One paragraph.
 
 ## Current Phase
 
-design | specification | implementation | verification | handoff | paused
+planned | design | specification | implementation | verification | handoff
 
 ## Current Attempt
 
