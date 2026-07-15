@@ -81,6 +81,27 @@ class TestInstallCommon(unittest.TestCase):
         self.assertFalse((target / ".DS_Store").exists())
         self.assertFalse((target / "__pycache__").exists())
 
+    def test_copy_skill_excludes_test_files(self) -> None:
+        source = self.tmp / "source"
+        scripts = source / "scripts"
+        scripts.mkdir(parents=True)
+        (source / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+        (scripts / "tool.py").write_text("# runtime\n", encoding="utf-8")
+        (scripts / "test_tool.py").write_text("# unit test\n", encoding="utf-8")
+        (scripts / "tool_test.py").write_text("# unit test\n", encoding="utf-8")
+        tests_dir = source / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_extra.py").write_text("# unit test\n", encoding="utf-8")
+        target = self.tmp / "target"
+
+        quiet_call(copy_skill, "test", source, target, dry_run=False)
+
+        # Runtime code ships; developer-only test files do not.
+        self.assertTrue((target / "scripts" / "tool.py").exists())
+        self.assertFalse((target / "scripts" / "test_tool.py").exists())
+        self.assertFalse((target / "scripts" / "tool_test.py").exists())
+        self.assertFalse((target / "tests").exists())
+
     def test_copy_skill_dry_run_does_not_write(self) -> None:
         source = self.tmp / "source"
         source.mkdir()
