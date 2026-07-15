@@ -5,11 +5,15 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import difflib
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+import collections_yaml
+from collections_yaml import parse_collections, upsert_collection_block
 
 
 WORK_TYPES = {
@@ -83,38 +87,6 @@ def current_git_root() -> str:
     return str(expand(result.stdout.strip()))
 
 
-def parse_collections(path: Path) -> dict[str, dict[str, str]]:
-    if not path.exists():
-        return {}
-    collections: dict[str, dict[str, str]] = {}
-    current: str | None = None
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.rstrip()
-        if not line.strip() or line.lstrip().startswith("#") or line == "collections:":
-            continue
-        top_match = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", line)
-        if top_match:
-            current = top_match.group(1)
-            collections[current] = {}
-            continue
-        kv_match = re.match(r"^    ([A-Za-z0-9_.-]+):\s*(.*)\s*$", line)
-        if kv_match and current:
-            key, value = kv_match.groups()
-            collections[current][key] = value.strip().strip("\"'")
-    return collections
-
-
-def write_collections(path: Path, collections: dict[str, dict[str, str]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines = ["collections:"]
-    for name, fields in collections.items():
-        lines.append(f"  {name}:")
-        for key, value in fields.items():
-            lines.append(f"    {key}: {value}")
-        lines.append("")
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-
-
 def write_project_collection_manifest(
     pdir: Path, project: str, cname: str, repo: str
 ) -> None:
@@ -153,14 +125,13 @@ python3 ~/.claude/skills/task-memory-bank/scripts/memory_bank.py --help
 ```
 """,
     )
+    # No umbrella collection (Decision 5): seed only the header; project blocks
+    # are added by upsert_collection. Cross-project search is multi-`-c` query,
+    # not a recursive umbrella (which would double embed cost and leave stale
+    # vectors). Bank-root config is never qmd-indexed.
     write_new(
         root / ".memory-bank" / "collections.yaml",
-        f"""collections:
-  task-memory-bank:
-    path: {root}
-    mode: recursive
-    kind: global
-""",
+        "collections:\n",
     )
 
 
@@ -310,24 +281,15 @@ vec: what context is needed to resume current work in {title}
 
 def upsert_collection(root: Path, project: str, pdir: Path, cname: str, repo: str) -> None:
     collections = root / ".memory-bank" / "collections.yaml"
-    data = parse_collections(collections)
-    data.setdefault(
-        "task-memory-bank",
-        {
-            "path": str(root),
-            "mode": "recursive",
-            "kind": "global",
-        },
-    )
-    data[cname] = {
+    fields: dict[str, object] = {
         "path": str(pdir),
         "mode": "recursive",
         "kind": "project",
         "project": project,
-        "repo": repo,
+        "repos": [repo] if repo else [],
         "context": project,
     }
-    write_collections(collections, data)
+    upsert_collection_block(collections, cname, fields)
 
 
 def resolve_project(args: argparse.Namespace) -> None:
@@ -342,7 +304,8 @@ def resolve_project(args: argparse.Namespace) -> None:
     for name, fields in data.items():
         if fields.get("kind") != "project":
             continue
-        if normalize_path(fields.get("repo")) == repo:
+        repos = fields.get("repos") or []
+        if any(normalize_path(r) == repo for r in repos):
             matches.append((name, fields))
 
     if not matches:
@@ -561,7 +524,8 @@ def reindex(args: argparse.Namespace) -> None:
         if repo:
             data = parse_collections(expand(root) / ".memory-bank" / "collections.yaml")
             for name, fields in data.items():
-                if fields.get("kind") == "project" and normalize_path(fields.get("repo")) == repo:
+                repos = fields.get("repos") or []
+                if fields.get("kind") == "project" and any(normalize_path(r) == repo for r in repos):
                     collection = name
                     break
 
@@ -592,13 +556,16 @@ def doctor(args: argparse.Namespace) -> None:
         collections = parse_collections(root / ".memory-bank" / "collections.yaml")
         for name, fields in collections.items():
             if fields.get("kind") == "project":
-                for key in ("path", "project", "repo", "context"):
+                for key in ("path", "project", "context"):
                     if not fields.get(key):
                         problems.append(f"Collection {name} is missing {key}")
-                if fields.get("path") and not expand(fields["path"]).exists():
+                if fields.get("path") and not expand(str(fields["path"])).exists():
                     problems.append(f"Collection {name} path does not exist: {fields['path']}")
-                if fields.get("repo") and not expand(fields["repo"]).exists():
-                    warnings.append(f"Collection {name} repo does not exist on this machine: {fields['repo']}")
+                # `repos` is an association list (0..N); a repo-less project is valid,
+                # but a listed repo that has vanished on this machine is a warning.
+                for r in (fields.get("repos") or []):
+                    if r and not expand(r).exists():
+                        warnings.append(f"Collection {name} repo does not exist on this machine: {r}")
     qmd = subprocess.run(["qmd", "--help"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if qmd.returncode != 0:
         problems.append("qmd CLI is unavailable")
@@ -612,6 +579,30 @@ def doctor(args: argparse.Namespace) -> None:
         for warning in warnings:
             print(f"- {warning}")
     print("Memory bank looks structurally healthy.")
+
+
+def migrate_collections(args: argparse.Namespace) -> None:
+    root = expand(args.root)
+    path = root / ".memory-bank" / "collections.yaml"
+    if not path.exists():
+        raise SystemExit(f"Missing .memory-bank/collections.yaml under: {root}")
+    before = path.read_text(encoding="utf-8")
+    after = collections_yaml.migrate_text(before)
+    if before == after:
+        print("collections.yaml already migrated; no changes.")
+        return
+    if args.check:
+        diff = difflib.unified_diff(
+            before.splitlines(keepends=True),
+            after.splitlines(keepends=True),
+            fromfile=str(path),
+            tofile=f"{path} (migrated)",
+        )
+        sys.stdout.writelines(diff)
+        print(f"\n[--check] Would migrate {path}. No changes written.")
+        return
+    path.write_text(after, encoding="utf-8")
+    print(f"Migrated {path}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -678,6 +669,19 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("doctor", help="Check memory-bank structure and qmd availability")
     p.add_argument("--memory-root", "--root", dest="root", required=True)
     p.set_defaults(func=doctor)
+
+    p = sub.add_parser(
+        "migrate-collections",
+        help="One-time migration of collections.yaml to the repos: list schema",
+        description=(
+            "Converts single-string `repo:` entries to a `repos:` list and drops the "
+            "legacy `kind: global` umbrella block, preserving all comments. Idempotent. "
+            "Use --check for a dry-run diff that writes nothing."
+        ),
+    )
+    p.add_argument("--memory-root", "--root", dest="root", required=True)
+    p.add_argument("--check", action="store_true", help="Show the diff without writing")
+    p.set_defaults(func=migrate_collections)
 
     return parser
 

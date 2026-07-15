@@ -13,7 +13,13 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
     tomllib = None
 
 
-COPY_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store")
+# Exclude developer-only files from the installed skill: bytecode/OS cruft plus
+# test files, which ship no runtime value to an installed skill (they are never
+# referenced from SKILL.md, so an agent never loads them). Covers both the flat
+# `test_*.py` convention used in this repo and a `tests/` subdirectory.
+COPY_IGNORE = shutil.ignore_patterns(
+    "__pycache__", "*.pyc", ".DS_Store", "test_*.py", "*_test.py", "tests"
+)
 
 
 def load_manifest(path: Path) -> dict:
