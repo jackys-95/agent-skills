@@ -4,13 +4,13 @@ Domain inputs that task-memory-bank passes to qmd. For retrieval mechanics, quer
 
 ## Collection Naming
 
-Collections follow the `mb-<project>` convention. Resolve the current repo to its collection before searching:
+Collections follow the `mb-<project>` convention. Gather candidate projects for the current repo before searching:
 
 ```bash
-python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
+python3 <skill-dir>/scripts/memory_bank.py suggest-projects --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
 ```
 
-The response includes `collection` (use for qmd searches), `memory_path`, and `read_first` (entrypoint files to read before broad search).
+The response includes ranked `candidates`, each with `collection` (use for qmd searches), `memory_path`, and `read_first` (entrypoint files to read before broad search). Pick the selected candidate's `collection`.
 
 ## Path Format for `get`
 

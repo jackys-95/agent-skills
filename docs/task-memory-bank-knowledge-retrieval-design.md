@@ -141,6 +141,27 @@ surviving role (an intent cache) is better served centrally.
   optional repo, it returns *ranked candidates* joined with work status — never a single
   silent verdict, never a hard exit on multiplicity. Multiple candidates is a normal
   return, handed to the selection judgment in Decision 2.
+- **Candidates are unioned across *all discovered bank roots*, not one `--root`.** A machine
+  can hold several independent banks (e.g. a knowledge-base domain split can produce distinct
+  roots such as `~/memory/task-memory-bank` and `~/Documents/<program>/task-memory-bank`); a
+  repo's project may live in any of them, so a single-scope lookup silently misses it. Bank
+  roots are enumerated **from qmd's own
+  collection catalog** (`qmd collection list` → resolve each `mb-*` collection's path via
+  `qmd collection show` → walk up to its nearest `.memory-bank/collections.yaml`), then their
+  `collections.yaml` files are unioned for the routing metadata qmd does not hold (`repos:`,
+  `description`). This is qmd-derived rather than a hand-maintained roots list because the
+  design already makes qmd the cross-project substrate (Decisions 5, 7): a project unreachable
+  by qmd is already broken, so qmd's catalog cannot silently drift the way a dedicated-but-
+  unmaintained list could. It is **not** a Decision 6 violation — reading qmd's catalog by CLI
+  to learn *where banks live* is not qmd-*indexing* config; the coupling is one-way
+  (tmb → qmd) and interface-stable. **New coupling to record:** cross-root discovery now needs
+  qmd installed (already mandatory for the skill). When no candidate matches, `suggest-projects`
+  reports *which* banks it searched and their project/repo counts, so an unregistered repo is
+  distinguishable from a wrong-scope lookup at a glance.
+- **A git worktree ranks its declared project.** `suggest-projects` identifies the repo by both
+  the current worktree's toplevel *and*, for a linked worktree, its canonical main-worktree path
+  (`--git-common-dir`), so a sibling worktree ranks the same project as its main checkout instead
+  of resolving to nothing. This is ranking evidence, not a location-as-identity rule (Decision 1).
 
 ### 4. Keep the 1:1 project ↔ collection mapping
 
@@ -226,8 +247,9 @@ tight, widening only on demand:
   `active.md`, work item files) and `work/index.md` by known path.
 - **Tier 1** — semantic search within the current project collection (`-c mb-current`).
 - **Tier 2** — semantic search across *selected related* projects (multi-`-c`, chosen from
-  `collections.yaml` descriptions/associations). Use `--min-score` rather than default
-  top-K to avoid underrepresenting smaller collections.
+  the `description`/associations in the `collections.yaml` of *all discovered bank roots*, not
+  one `--root` — see Decision 3). Use `--min-score` rather than default top-K to avoid
+  underrepresenting smaller collections.
 - **Tier 3** — hand off to a knowledge-base skill (Decision 8) when the agent judges it
   lacks domain or technical grounding.
 
@@ -265,11 +287,13 @@ helper, because the deterministic portion of resume grew from one lookup to seve
 **Deterministic spine (`memory_bank.py suggest-projects`)** — gathers and ranks facts,
 never decides:
 
-1. Resolve cwd's repo (`git rev-parse --show-toplevel`) — evidence, not an answer.
-2. From `collections.yaml`, find efforts whose `repos:` include this repo (candidate set).
+1. Resolve cwd's repo — its worktree toplevel and, for a linked worktree, the canonical
+   main-worktree path (Decision 3) — as evidence, not an answer.
+2. From the `collections.yaml` of *every discovered bank root* (Decision 3), find efforts whose
+   `repos:` include this repo (candidate set), unioned across banks.
 3. For each candidate, read `work/index.md` status column → collect in-progress work.
 4. Rank by association + status (+ recency only to order the shortlist) and return
-   structured candidates with conflict flags.
+   structured candidates with conflict flags; on zero, report the banks searched.
 
 **Judgment (prose in `references/workflows.md`, under `memory.resume`)** — consumes that
 output:

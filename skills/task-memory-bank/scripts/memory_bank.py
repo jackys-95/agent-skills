@@ -15,76 +15,23 @@ from pathlib import Path
 import collections_yaml
 from collections_yaml import parse_collections, upsert_collection_block
 
-
-WORK_TYPES = {
-    "epic": ("EPIC", "epics"),
-    "story": ("STORY", "stories"),
-    "task": ("TASK", "tasks"),
-    "spike": ("SPIKE", "spikes"),
-}
-
-# Closed, ordinal work-status vocabulary (design Decision 9). Replaces the
-# informal `active`/`open`/`setup` mix the script used to write. The ordinal is
-# lifecycle order — open → in-progress → blocked/paused → terminal — grouped to
-# match the design's four tiers; statuses in the same tier share a value so a
-# stable sort falls through to the next key. This supplies only the *type*: how
-# the resume ranker weights it (e.g. whether a stale in-progress outranks a fresh
-# open) is TASK-0003's concern, deliberately not decided here.
-WORK_STATUSES = (
-    "open",
-    "in-progress",
-    "blocked",
-    "paused",
-    "done",
-    "shipped",
-    "cancelled",
-    "superseded",
+# Selection, ranking, bank discovery, and the work-item vocabulary + index live
+# in the selection module (mirrors collections_yaml's extraction): memory_bank is
+# the CLI orchestrator, selection is the pure, unit-tested core. Re-export the
+# shared leaf names the scaffolding paths below use.
+from selection import (
+    WORK_STATUSES,
+    WORK_TYPES,
+    append_work_index_row,
+    display_title,
+    enumerate_banks,
+    expand,
+    gather_candidates,
+    git_repo_signals,
+    normalize_path,
+    regen_work_index,
+    validate_status,
 )
-WORK_STATUS_ORDER = {
-    "open": 0,
-    "in-progress": 1,
-    "blocked": 2,
-    "paused": 2,
-    "done": 3,
-    "shipped": 3,
-    "cancelled": 3,
-    "superseded": 3,
-}
-TERMINAL_STATUSES = frozenset({"done", "shipped", "cancelled", "superseded"})
-
-# Workflow phase — a separate, non-ranking enum (design Decision 9), kept
-# distinct so "status" is never re-overloaded with workflow phase. Reconciles
-# two vocabulary defects: the script's stray `setup` (dropped) and `paused`
-# being listed as a phase in references/structure.md (it is a WorkStatus, not a
-# phase). `planned` is the plan-checkpoint state before design work begins.
-PHASES = (
-    "planned",
-    "design",
-    "specification",
-    "implementation",
-    "verification",
-    "handoff",
-)
-
-
-def validate_status(value: str) -> str:
-    if value not in WORK_STATUS_ORDER:
-        raise SystemExit(
-            f"Invalid work status {value!r}; expected one of: {', '.join(WORK_STATUSES)}"
-        )
-    return value
-
-
-def validate_phase(value: str) -> str:
-    if value not in PHASES:
-        raise SystemExit(
-            f"Invalid phase {value!r}; expected one of: {', '.join(PHASES)}"
-        )
-    return value
-
-
-def expand(path: str) -> Path:
-    return Path(path).expanduser().resolve()
 
 
 def slugify(value: str) -> str:
@@ -92,10 +39,6 @@ def slugify(value: str) -> str:
     value = re.sub(r"[^a-z0-9_-]+", "-", value)
     value = re.sub(r"-{2,}", "-", value)
     return value.strip("-_") or "item"
-
-
-def display_title(slug_or_title: str) -> str:
-    return slug_or_title.replace("_", " ").replace("-", " ").strip().title()
 
 
 def today() -> str:
@@ -125,12 +68,6 @@ def project_dir(root: Path, project: str) -> Path:
 
 def collection_name(project: str) -> str:
     return "mb-" + project.replace("_", "-")
-
-
-def normalize_path(path: str | None) -> str:
-    if not path:
-        return ""
-    return str(expand(path))
 
 
 def current_git_root() -> str:
@@ -351,51 +288,52 @@ def upsert_collection(root: Path, project: str, pdir: Path, cname: str, repo: st
     upsert_collection_block(collections, cname, fields)
 
 
-def resolve_project(args: argparse.Namespace) -> None:
-    root = expand(args.root)
-    repo = normalize_path(args.repo) or current_git_root()
-    if not repo:
-        raise SystemExit("Provide --repo or run from inside a git repository")
+def suggest_projects(args: argparse.Namespace) -> None:
+    """CLI wrapper: gather ranked candidates for the repo, then render them.
 
-    collections_path = root / ".memory-bank" / "collections.yaml"
-    data = parse_collections(collections_path)
-    matches = []
-    for name, fields in data.items():
-        if fields.get("kind") != "project":
-            continue
-        repos = fields.get("repos") or []
-        if any(normalize_path(r) == repo for r in repos):
-            matches.append((name, fields))
+    Judgment-free (design Decision 3/9): the ranking lives in
+    `selection.gather_candidates`; this only resolves repo signals, chooses the
+    banks to search, and prints (JSON or human). Never hard-exits on zero/many —
+    multiplicity is the normal return for the prose selection judgment (Decision 2),
+    and zero prints a self-diagnosing report naming the banks searched.
+    """
+    explicit_root = expand(args.root)
+    repo = normalize_path(args.repo)
+    signals = [repo] if repo else git_repo_signals(str(Path.cwd()))
+    signal_set = {s for s in signals if s}
 
-    if not matches:
-        raise SystemExit(f"No memory-bank project maps to repo: {repo}")
-    if len(matches) > 1:
-        names = ", ".join(name for name, _ in matches)
-        raise SystemExit(f"Multiple memory-bank projects map to repo {repo}: {names}")
+    banks = enumerate_banks(explicit_root)
+    payload = gather_candidates(signal_set, banks)
 
-    name, fields = matches[0]
-    payload = {
-        "project": fields.get("project", ""),
-        "collection": name,
-        "memory_path": fields.get("path", ""),
-        "repo": repo,
-        "context": fields.get("context", ""),
-        "read_first": [
-            str(Path(fields.get("path", "")) / ".memory-bank" / "collection.yaml"),
-            str(Path(fields.get("path", "")) / "README.md"),
-            str(Path(fields.get("path", "")) / "active.md"),
-        ],
-    }
     if args.json:
         print(json.dumps(payload, indent=2))
-    else:
-        print(f"Project: {payload['project']}")
-        print(f"Collection: {payload['collection']}")
-        print(f"Memory path: {payload['memory_path']}")
-        print(f"Repo: {payload['repo']}")
-        print("Read first:")
-        for path in payload["read_first"]:
-            print(f"  {path}")
+        return
+
+    candidates = payload["candidates"]
+    if not candidates:
+        print("No candidate project maps to these repo signals.")
+        print(f"Repo signals: {', '.join(payload['repo_signals']) or '(none — not in a git repo)'}")
+        print("Searched banks:")
+        for rep in payload["searched_banks"]:
+            print(f"  {rep['bank_root']} — {rep['projects']} project(s), {rep['repos']} repo association(s)")
+        if not payload["searched_banks"]:
+            print("  (none discovered — is qmd installed and are banks registered?)")
+        print("Declare the project explicitly (--project on writes) or register this repo.")
+        return
+
+    if payload["conflict"]:
+        print(f"Multiple candidate projects ({len(candidates)}) — selection is a declaration; pick one:")
+    for i, c in enumerate(candidates, 1):
+        line = f"{i}. {c['project']}  [{c['collection']}]"
+        if c["top_status"]:
+            line += f"  status={c['top_status']}"
+        print(line)
+        if c["description"]:
+            print(f"     {c['description']}")
+        print(f"     bank: {c['bank_root']}  matched: {', '.join(c['matched_repos'])}")
+        for w in c["active_work"]:
+            print(f"     - {w['id']} ({w['status']}): {w['title']}")
+        print(f"     read first: {', '.join(c['read_first'])}")
 
 
 def next_id(work_root: Path, prefix: str) -> str:
@@ -408,33 +346,6 @@ def next_id(work_root: Path, prefix: str) -> str:
                 if match:
                     max_seen = max(max_seen, int(match.group(1)))
     return f"{prefix}-{max_seen + 1:04d}"
-
-
-WORK_INDEX_HEADER = (
-    "# Work Index\n\n"
-    "| ID | Type | Status | Title | Created |\n"
-    "| --- | --- | --- | --- | --- |\n"
-)
-
-
-def append_work_index_row(pdir: Path, wid: str, work_type: str, status: str, title: str) -> None:
-    """Surface a work item's status in `work/index.md` (design Decision 9).
-
-    Appends one row, creating the file with a header if absent. Full
-    deterministic (re)generation of the index for ranking is TASK-0003; this
-    only keeps the flat status table current as items are created, matching the
-    manual step documented in references/workflows.md.
-    """
-    index = pdir / "work" / "index.md"
-    row = f"| {wid} | {work_type} | {status} | {title} | {today()} |\n"
-    if not index.exists():
-        index.parent.mkdir(parents=True, exist_ok=True)
-        index.write_text(WORK_INDEX_HEADER + row, encoding="utf-8")
-        return
-    current = index.read_text(encoding="utf-8")
-    if f"| {wid} |" in current:  # idempotent: do not duplicate an existing row
-        return
-    index.write_text(current.rstrip("\n") + "\n" + row, encoding="utf-8")
 
 
 def new_work(args: argparse.Namespace) -> None:
@@ -547,6 +458,16 @@ hyde: The active.md for {args.title} describes the current state, next actions, 
     print(f"Created {work_type}: {wdir}")
 
 
+def regen_index_cmd(args: argparse.Namespace) -> None:
+    root = expand(args.root)
+    project = slugify(args.project)
+    pdir = project_dir(root, project)
+    if not pdir.exists():
+        raise SystemExit(f"Project memory does not exist: {pdir}")
+    index = regen_work_index(pdir)
+    print(f"Regenerated {index}")
+
+
 def branch_work(args: argparse.Namespace) -> None:
     wdir = expand(args.work)
     if not (wdir / "active.md").exists():
@@ -636,8 +557,9 @@ def doctor(args: argparse.Namespace) -> None:
     warnings = []
     if not root.exists():
         problems.append(f"Missing root: {root}")
-    if not (root / "registry.md").exists():
-        problems.append("Missing registry.md")
+    # No registry-sync check: registry.md is a deprecated human rendering of
+    # collections.yaml (design Decision 6), not a structural requirement — its
+    # absence is not a fault. collections.yaml is the source of truth checked below.
     if not (root / ".memory-bank" / "collections.yaml").exists():
         problems.append("Missing .memory-bank/collections.yaml")
     else:
@@ -716,11 +638,43 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=new_work)
 
-    p = sub.add_parser("resolve-project", help="Resolve current or provided git repo to memory project")
+    # suggest-projects supersedes the hard-exiting resolve-project (design
+    # Decision 3/9): it returns *ranked candidates* across all discovered banks,
+    # never a single silent verdict. `resolve-project` stays as a hidden alias so
+    # any lingering caller keeps working through the reference-doc transition.
+    for cmd in ("suggest-projects", "resolve-project"):
+        p = sub.add_parser(
+            cmd,
+            help=(
+                "Rank candidate projects for the current/declared repo across all "
+                "discovered banks (no hard exit; multiplicity is normal)"
+                if cmd == "suggest-projects" else argparse.SUPPRESS
+            ),
+            description=(
+                "Gather and rank candidate projects whose observed repos: include the "
+                "current (or --repo) git repo, unioned across every memory bank qmd "
+                "knows about plus --root. Joins each candidate with its work-item "
+                "statuses and sorts by (resume status, association, recency). Prints a "
+                "self-diagnosing report (which banks were searched) when nothing matches."
+            ),
+        )
+        p.add_argument("--memory-root", "--root", dest="root", required=True)
+        p.add_argument("--repo")
+        p.add_argument("--json", action="store_true")
+        p.set_defaults(func=suggest_projects)
+
+    p = sub.add_parser(
+        "regen-index",
+        help="Regenerate work/index.md from work items on disk",
+        description=(
+            "Rebuilds projects/<project>/work/index.md from the WorkStatus in each "
+            "work item's README, resume-ordered. Use after hand-editing statuses so "
+            "the index the ranker reads stays truthful."
+        ),
+    )
     p.add_argument("--memory-root", "--root", dest="root", required=True)
-    p.add_argument("--repo")
-    p.add_argument("--json", action="store_true")
-    p.set_defaults(func=resolve_project)
+    p.add_argument("--project", required=True)
+    p.set_defaults(func=regen_index_cmd)
 
     p = sub.add_parser("branch-work", help="Create an attempt under a work item")
     p.add_argument("--work", required=True)
