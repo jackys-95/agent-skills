@@ -4,7 +4,7 @@ Use this reference for memory-bank operations beyond initial scaffolding.
 
 ## Resume
 
-1. Resolve the current git repo to a memory project using `.memory-bank/collections.yaml` or `memory_bank.py resolve-project`.
+1. Gather candidate projects for the current git repo with `memory_bank.py suggest-projects` (reads `.memory-bank/collections.yaml` across every bank qmd knows about). This returns *ranked candidates* joined with work status, not a single verdict — selection is a declaration, so if the prompt names the effort, commit to it and announce; otherwise take the top candidate when it is unambiguous, and present the shortlist to choose from when several rank close or a conflict is flagged. A sibling git worktree ranks the same project as its main checkout.
 2. Read project `README.md`.
 3. Read project `active.md`.
 4. If a work item is specified, read its `README.md` and `active.md`.
@@ -55,7 +55,7 @@ history/
 
 Do not create `designs/`, `specs/`, `decisions.md`, or `attempts/` unless the work already needs them.
 
-After scaffolding, add a row to `work/index.md` with the ID, type, status (`open`), title, and creation date. If `work/index.md` does not exist yet, create it with a header row before adding the entry.
+`new-work` appends the item's row to `work/index.md` automatically (creating the file if absent). If you later hand-edit statuses, run `memory_bank.py regen-index --project <p>` to rebuild the table, resume-ordered, from each work item's `## Status`.
 
 ## Update
 
@@ -77,7 +77,7 @@ History should be append-only. Active context should be compact and replaceable.
 - [ ] `active.md` rewritten to current resumable state only
 - [ ] `## Last Updated` in `active.md` links to the new session file
 - [ ] Work item `README.md` updated if status or progress changed
-- [ ] `work/index.md` updated if a work item was created or its status changed
+- [ ] `work/index.md` regenerated (`regen-index`) if a work item's status changed
 - [ ] `reindex` run
 
 ## When to Reindex
@@ -171,5 +171,5 @@ When work is done:
 1. Set status to `done`, `shipped`, `cancelled`, or `superseded`.
 2. Move remaining useful context out of `active.md` into README/history/decisions.
 3. Leave `active.md` as a short terminal state summary.
-4. Update the status field in `work/index.md` for this item.
+4. Run `python3 <skill-dir>/scripts/memory_bank.py regen-index --project <p>` to refresh `work/index.md` with this item's terminal status.
 5. Run `python3 <skill-dir>/scripts/memory_bank.py reindex`.

@@ -37,7 +37,7 @@ For deterministic scaffolding, use:
 ```bash
 python3 <skill-dir>/scripts/memory_bank.py init-project --root ~/memory/task-memory-bank --project example_project --repo ~/work/example-project
 python3 <skill-dir>/scripts/memory_bank.py new-work --root ~/memory/task-memory-bank --project example_project --type task --title "Fix saved filter state"
-python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
+python3 <skill-dir>/scripts/memory_bank.py suggest-projects --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
 ```
 
 `<skill-dir>` is this skill's own directory — resolve the script path relative to it.
@@ -109,13 +109,13 @@ See [references/workflows.md](references/workflows.md) for resume, update, hando
 
 ## qmd Usage
 
-Before searching qmd from a repo, resolve the repo to its memory project:
+Before searching qmd from a repo, gather candidate projects for the repo:
 
 ```bash
-python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
+python3 <skill-dir>/scripts/memory_bank.py suggest-projects --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
 ```
 
-Use the returned `collection`, `memory_path`, and `read_first` files. Do not guess collection names when `.memory-bank/collections.yaml` is available.
+This returns ranked `candidates` (across every bank qmd knows about), each with `collection`, `memory_path`, and `read_first`. Selection is a declaration: take the top candidate when unambiguous, otherwise choose from the shortlist. Do not guess collection names when `.memory-bank/collections.yaml` is available.
 
 **`get` path format:** Search results return paths relative to their collection. Prepend the collection name before calling `get`: `mb-<project>/path/from/search`. Bare paths return "Document not found" with no hint about the missing prefix. Alternatively, use the `docid` (`#abc123`) from search results — docids work without a prefix.
 

@@ -43,18 +43,18 @@ python3 skills/task-memory-bank/scripts/memory_bank.py new-work \
   --title "Fix saved filter state"
 ```
 
-## Resolve Current Repo
+## Suggest Projects for the Current Repo
 
-Resolve the current git repo to its memory project and qmd collection:
+Gather ranked candidate projects for the current git repo:
 
 ```bash
-python3 skills/task-memory-bank/scripts/memory_bank.py resolve-project \
+python3 skills/task-memory-bank/scripts/memory_bank.py suggest-projects \
   --root ~/memory/task-memory-bank \
   --repo "$(git rev-parse --show-toplevel)" \
   --json
 ```
 
-The resolver reads `.memory-bank/collections.yaml`, so agents do not need to guess which qmd collection belongs to the current repo.
+This reads `.memory-bank/collections.yaml` across every bank qmd knows about and returns ranked `candidates` (each with its `collection`, `memory_path`, and `read_first`) joined with work status — never a single silent verdict. Selection is a declaration, so a caller commits to the effort (top candidate when unambiguous; the shortlist otherwise). A sibling git worktree ranks the same project as its main checkout, and an unmatched repo prints a self-diagnosing report naming the banks searched.
 
 Each initialized project also gets `projects/<project>/.memory-bank/collection.yaml`. That project-local manifest travels with the collection and can be indexed with the rest of the collection when qmd includes YAML files.
 
