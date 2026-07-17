@@ -36,27 +36,12 @@ collections:
 
 Agents should prefer this mapping over inferring from folder names.
 
-Each project collection should also include a local manifest at `projects/<project>/.memory-bank/collection.yaml`:
-
-```yaml
-collection:
-  name: mb-example-project
-  kind: project
-  project: example_project
-  repo: ~/work/example-project
-  context: example_project
-  path: .
-  mode: recursive
-```
-
-The root registry enables global lookup across projects. The project-local manifest keeps collection metadata inside the collection itself so it can travel with, and be indexed alongside, the project memory.
+The root `collections.yaml` is the single source of truth for collection metadata. There is no per-project `.memory-bank/collection.yaml` manifest: a detached copy would carry a stale association snapshot, and config is centralized (design Decision 6).
 
 ## Project
 
 ```text
 projects/<project>/
-  .memory-bank/
-    collection.yaml
   README.md
   active.md
   overviews/
