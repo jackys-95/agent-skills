@@ -691,23 +691,48 @@ def migrate_collections(args: argparse.Namespace) -> None:
     path = root / ".memory-bank" / "collections.yaml"
     if not path.exists():
         raise SystemExit(f"Missing .memory-bank/collections.yaml under: {root}")
+
+    changed = False
+
+    # 1. Root schema migration (repo: -> repos:, drop the kind: global umbrella).
     before = path.read_text(encoding="utf-8")
     after = collections_yaml.migrate_text(before)
-    if before == after:
-        print("collections.yaml already migrated; no changes.")
-        return
-    if args.check:
-        diff = difflib.unified_diff(
-            before.splitlines(keepends=True),
-            after.splitlines(keepends=True),
-            fromfile=str(path),
-            tofile=f"{path} (migrated)",
-        )
-        sys.stdout.writelines(diff)
-        print(f"\n[--check] Would migrate {path}. No changes written.")
-        return
-    path.write_text(after, encoding="utf-8")
-    print(f"Migrated {path}")
+    if before != after:
+        changed = True
+        if args.check:
+            diff = difflib.unified_diff(
+                before.splitlines(keepends=True),
+                after.splitlines(keepends=True),
+                fromfile=str(path),
+                tofile=f"{path} (migrated)",
+            )
+            sys.stdout.writelines(diff)
+            print(f"\n[--check] Would migrate {path}.")
+        else:
+            path.write_text(after, encoding="utf-8")
+            print(f"Migrated {path}")
+
+    # 2. Remove stale per-project `.memory-bank/collection.yaml` manifests. These
+    # were dropped by design (Decision 6): a detached copy carries a stale
+    # association snapshot. init-project no longer writes them, but banks scaffolded
+    # before that still have them on disk — nothing reads them now. Remove the empty
+    # `.memory-bank/` dir too, but never touch the *root* `.memory-bank/` (which
+    # holds collections.yaml — a project dir named that would be pathological).
+    for manifest in sorted((root / "projects").glob("*/.memory-bank/collection.yaml")):
+        changed = True
+        if args.check:
+            print(f"[--check] Would remove stale manifest {manifest}.")
+            continue
+        manifest.unlink()
+        print(f"Removed stale manifest {manifest}")
+        mdir = manifest.parent
+        if mdir != root / ".memory-bank" and not any(mdir.iterdir()):
+            mdir.rmdir()
+
+    if not changed:
+        print("collections.yaml already migrated and no stale manifests; no changes.")
+    elif args.check:
+        print("[--check] No changes written.")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -839,8 +864,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="One-time migration of collections.yaml to the repos: list schema",
         description=(
             "Converts single-string `repo:` entries to a `repos:` list and drops the "
-            "legacy `kind: global` umbrella block, preserving all comments. Idempotent. "
-            "Use --check for a dry-run diff that writes nothing."
+            "legacy `kind: global` umbrella block, preserving all comments. Also removes "
+            "stale per-project `.memory-bank/collection.yaml` manifests (dropped by "
+            "design Decision 6; nothing reads them). Idempotent. Use --check for a "
+            "dry-run that writes nothing."
         ),
     )
     p.add_argument("--memory-root", "--root", dest="root", required=True)

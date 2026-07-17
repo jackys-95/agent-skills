@@ -199,5 +199,40 @@ class InitProjectTests(unittest.TestCase):
         self.assertEqual(cmds[1][:3], ["qmd", "context", "add"])
 
 
+class MigrateCollectionsManifestTests(unittest.TestCase):
+    def _bank_with_manifest(self) -> tuple[Path, Path]:
+        """A migrated bank that still carries a stale per-project manifest."""
+        root = Path(tempfile.mkdtemp())
+        (root / ".memory-bank").mkdir(parents=True)
+        # Already on the repos: schema, so the text-migration step is a no-op and
+        # only the manifest removal should fire.
+        (root / ".memory-bank" / "collections.yaml").write_text(
+            "collections:\n  mb-demo:\n    path: x\n    kind: project\n"
+            "    project: demo\n    repos: []\n    context: demo\n",
+            encoding="utf-8",
+        )
+        manifest = root / "projects" / "demo" / ".memory-bank" / "collection.yaml"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text("collection:\n  name: mb-demo\n  repo: /old\n", encoding="utf-8")
+        return root, manifest
+
+    def test_removes_stale_manifest(self):
+        root, manifest = self._bank_with_manifest()
+        mb.migrate_collections(argparse.Namespace(root=str(root), check=False))
+        self.assertFalse(manifest.exists())
+        # The now-empty .memory-bank dir is cleaned up too.
+        self.assertFalse(manifest.parent.exists())
+
+    def test_check_does_not_remove(self):
+        root, manifest = self._bank_with_manifest()
+        mb.migrate_collections(argparse.Namespace(root=str(root), check=True))
+        self.assertTrue(manifest.exists())
+
+    def test_does_not_touch_root_memory_bank(self):
+        root, _ = self._bank_with_manifest()
+        mb.migrate_collections(argparse.Namespace(root=str(root), check=False))
+        self.assertTrue((root / ".memory-bank" / "collections.yaml").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
