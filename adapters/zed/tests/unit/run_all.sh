@@ -21,3 +21,7 @@ bash "$DIR/test_stop_hook.sh"
 echo ""
 echo "=== revert_zed_snapshot.py ==="
 bash "$DIR/test_revert_hook.sh"
+
+echo ""
+echo "=== prune_stale_roots.py ==="
+python3 "$DIR/test_prune_stale_roots.py"
