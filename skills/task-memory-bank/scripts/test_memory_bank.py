@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for memory_bank.py CLI wiring added in TASK-0004.
+"""Unit tests for memory_bank.py CLI wiring (init-project qmd registration, repo accrual, drift check).
 
 Run: python3 test_memory_bank.py
 

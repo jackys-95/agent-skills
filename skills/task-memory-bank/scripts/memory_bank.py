@@ -657,7 +657,7 @@ def doctor(args: argparse.Namespace) -> None:
     if qmd.returncode != 0:
         problems.append("qmd CLI is unavailable")
     else:
-        # Config-vs-qmd drift (TASK-0004): collections.yaml is the source of truth,
+        # Config-vs-qmd drift: collections.yaml is the source of truth,
         # but init-project registers with qmd separately, so a project can be
         # declared in config yet never registered with qmd — the "config written
         # but qmd never told" gap (design Validation notes). Warn (not fail): a
