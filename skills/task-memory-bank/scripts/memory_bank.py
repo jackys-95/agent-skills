@@ -83,23 +83,37 @@ def current_git_root() -> str:
     return str(expand(result.stdout.strip()))
 
 
-def write_project_collection_manifest(
-    pdir: Path, project: str, cname: str, repo: str
-) -> None:
-    manifest = pdir / ".memory-bank" / "collection.yaml"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text(
-        f"""collection:
-  name: {cname}
-  kind: project
-  project: {project}
-  repo: {repo}
-  context: {project}
-  path: .
-  mode: recursive
-""",
-        encoding="utf-8",
-    )
+def register_qmd_collection(pdir: Path, cname: str, summary: str) -> None:
+    """Invoke qmd to register the project collection and attach its context.
+
+    Closes the "config written but qmd never told" drift gap (design Decision 6 +
+    Validation notes): `init-project` writes `collections.yaml` as the source of
+    truth, so it must also tell qmd, or the two silently diverge.
+
+    Always passes an explicit path + `--name` — `qmd collection add` with no
+    positional arg silently creates a collection named after the cwd (observed
+    while dogfooding). The context command uses the real CLI form
+    `qmd context add <path> "<summary>"` with a virtual collection path, not the
+    wrong `qmd context add <project> <readme-path>` this script printed before.
+
+    Warn-and-continue on any failure (matches the SKILL.md rule that a down/absent
+    qmd never blocks a markdown/config write): the caller still has valid
+    `collections.yaml` + markdown; only the qmd index is behind, and the printed
+    commands let the user finish registration by hand.
+    """
+    commands = [
+        ["qmd", "collection", "add", str(pdir), "--name", cname],
+        ["qmd", "context", "add", f"qmd://{cname}/", summary],
+    ]
+    for cmd in commands:
+        result = subprocess.run(cmd, check=False)
+        if result.returncode != 0:
+            print(
+                f"warning: qmd registration step failed ({' '.join(cmd)}); "
+                "collections.yaml and markdown were still written. "
+                "Run the qmd commands above by hand once qmd is available."
+            )
+            return
 
 
 def init_root(root: Path) -> None:
@@ -134,7 +148,11 @@ python3 ~/.claude/skills/task-memory-bank/scripts/memory_bank.py --help
 def init_project(args: argparse.Namespace) -> None:
     root = expand(args.root)
     project = slugify(args.project)
-    repo = expand(args.repo) if args.repo else None
+    # `--repo` is repeatable (action="append"): a project may be seeded with more
+    # than one observed repo. Normalize each to an absolute path; drop empties.
+    repos = [str(expand(r)) for r in (args.repo or []) if r]
+    domain = getattr(args, "domain", None)
+    description = getattr(args, "description", None)
     init_root(root)
 
     pdir = project_dir(root, project)
@@ -150,7 +168,9 @@ def init_project(args: argparse.Namespace) -> None:
         (pdir / subdir).mkdir(parents=True, exist_ok=True)
 
     title = display_title(project)
-    repo_text = str(repo) if repo else ""
+    # For the human-facing README/registry rendering, show the repos one per line
+    # (or a placeholder when the project is repo-less — a legitimate state).
+    repo_text = "\n".join(repos) if repos else ""
     cname = collection_name(project)
 
     write_new(
@@ -266,25 +286,40 @@ vec: what context is needed to resume current work in {title}
 - qmd collection: `{cname}`
 """,
     )
-    upsert_collection(root, project, pdir, cname, repo_text)
-    write_project_collection_manifest(pdir, project, cname, repo_text)
+    upsert_collection(root, project, pdir, cname, repos, description, domain)
+
+    # A generic, collection-level summary (design Validation notes: "not an
+    # effort-specific one") — the `description` if the caller gave one, else a
+    # template. This becomes the qmd context; editable later via `qmd context add`.
+    summary = description or f"Task memory bank for the {title} project."
+    register_qmd_collection(pdir, cname, summary)
 
     print(f"Initialized project memory: {pdir}")
-    print(f"Suggested qmd commands:")
-    print(f"  qmd collection add {pdir} --name {cname}")
-    print(f"  qmd context add {project} {pdir / 'README.md'}")
+    print(f"Registered qmd collection {cname} (path {pdir}).")
 
 
-def upsert_collection(root: Path, project: str, pdir: Path, cname: str, repo: str) -> None:
+def upsert_collection(
+    root: Path,
+    project: str,
+    pdir: Path,
+    cname: str,
+    repos: list[str],
+    description: str | None = None,
+    domain: str | None = None,
+) -> None:
     collections = root / ".memory-bank" / "collections.yaml"
     fields: dict[str, object] = {
         "path": str(pdir),
         "mode": "recursive",
         "kind": "project",
         "project": project,
-        "repos": [repo] if repo else [],
+        "repos": list(repos),
         "context": project,
     }
+    if description:
+        fields["description"] = description
+    if domain:
+        fields["domain"] = domain
     upsert_collection_block(collections, cname, fields)
 
 
@@ -455,6 +490,19 @@ hyde: The active.md for {args.title} describes the current state, next actions, 
 """,
     )
     append_work_index_row(pdir, wid, work_type, status, args.title)
+
+    # Accrete the repo this work item touches into the project's `repos:` list
+    # (design Decision 3: associations are observed from real work, not declared).
+    # Repo source mirrors suggest-projects/reindex: explicit --repo wins, else the
+    # current git root; skip silently if neither resolves (a repo-less project is
+    # legitimate). `append_repo` is comment-preserving and idempotent.
+    repo = str(expand(args.repo)) if args.repo else current_git_root()
+    if repo:
+        collections = root / ".memory-bank" / "collections.yaml"
+        cname = collection_name(project)
+        if collections_yaml.append_repo(collections, cname, repo):
+            print(f"Recorded repo association: {repo} -> {cname}")
+
     print(f"Created {work_type}: {wdir}")
 
 
@@ -551,6 +599,33 @@ def reindex(args: argparse.Namespace) -> None:
         raise SystemExit(result.returncode)
 
 
+_QMD_COLLECTION_RE = re.compile(r"^(\S+)\s+\(qmd://\1/\)")
+
+
+def qmd_collection_names() -> set[str] | None:
+    """Return the set of collections qmd knows about, or None if qmd is unavailable.
+
+    Parses `qmd collection list`, whose entries render as
+    `<name> (qmd://<name>/)`. None (not an empty set) signals "could not ask qmd"
+    so the drift check can distinguish "qmd down" from "qmd has zero collections".
+    """
+    result = subprocess.run(
+        ["qmd", "collection", "list"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    names = set()
+    for line in result.stdout.splitlines():
+        match = _QMD_COLLECTION_RE.match(line)
+        if match:
+            names.add(match.group(1))
+    return names
+
+
 def doctor(args: argparse.Namespace) -> None:
     root = expand(args.root)
     problems = []
@@ -560,12 +635,14 @@ def doctor(args: argparse.Namespace) -> None:
     # No registry-sync check: registry.md is a deprecated human rendering of
     # collections.yaml (design Decision 6), not a structural requirement — its
     # absence is not a fault. collections.yaml is the source of truth checked below.
+    config_collections: set[str] = set()
     if not (root / ".memory-bank" / "collections.yaml").exists():
         problems.append("Missing .memory-bank/collections.yaml")
     else:
         collections = parse_collections(root / ".memory-bank" / "collections.yaml")
         for name, fields in collections.items():
             if fields.get("kind") == "project":
+                config_collections.add(name)
                 for key in ("path", "project", "context"):
                     if not fields.get(key):
                         problems.append(f"Collection {name} is missing {key}")
@@ -579,6 +656,24 @@ def doctor(args: argparse.Namespace) -> None:
     qmd = subprocess.run(["qmd", "--help"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if qmd.returncode != 0:
         problems.append("qmd CLI is unavailable")
+    else:
+        # Config-vs-qmd drift: collections.yaml is the source of truth,
+        # but init-project registers with qmd separately, so a project can be
+        # declared in config yet never registered with qmd — the "config written
+        # but qmd never told" gap (design Validation notes). Warn (not fail): a
+        # freshly scaffolded, not-yet-registered project is a legitimate transient.
+        #
+        # Only the config->qmd direction is checked. The reverse (a qmd collection
+        # absent from *this* config) is not drift in the multi-bank model: qmd
+        # indexes every bank's collections plus standalone KB collections, so this
+        # bank legitimately does not know about them.
+        registered = qmd_collection_names()
+        if registered is not None:
+            for name in sorted(config_collections - registered):
+                warnings.append(
+                    f"Collection {name} is in collections.yaml but not registered with qmd "
+                    "(run init-project registration or `qmd collection add`)"
+                )
     if problems:
         print("Problems:")
         for problem in problems:
@@ -596,33 +691,76 @@ def migrate_collections(args: argparse.Namespace) -> None:
     path = root / ".memory-bank" / "collections.yaml"
     if not path.exists():
         raise SystemExit(f"Missing .memory-bank/collections.yaml under: {root}")
+
+    changed = False
+
+    # 1. Root schema migration (repo: -> repos:, drop the kind: global umbrella).
     before = path.read_text(encoding="utf-8")
     after = collections_yaml.migrate_text(before)
-    if before == after:
-        print("collections.yaml already migrated; no changes.")
-        return
-    if args.check:
-        diff = difflib.unified_diff(
-            before.splitlines(keepends=True),
-            after.splitlines(keepends=True),
-            fromfile=str(path),
-            tofile=f"{path} (migrated)",
-        )
-        sys.stdout.writelines(diff)
-        print(f"\n[--check] Would migrate {path}. No changes written.")
-        return
-    path.write_text(after, encoding="utf-8")
-    print(f"Migrated {path}")
+    if before != after:
+        changed = True
+        if args.check:
+            diff = difflib.unified_diff(
+                before.splitlines(keepends=True),
+                after.splitlines(keepends=True),
+                fromfile=str(path),
+                tofile=f"{path} (migrated)",
+            )
+            sys.stdout.writelines(diff)
+            print(f"\n[--check] Would migrate {path}.")
+        else:
+            path.write_text(after, encoding="utf-8")
+            print(f"Migrated {path}")
+
+    # 2. Remove stale per-project `.memory-bank/collection.yaml` manifests. These
+    # were dropped by design (Decision 6): a detached copy carries a stale
+    # association snapshot. init-project no longer writes them, but banks scaffolded
+    # before that still have them on disk — nothing reads them now. Remove the empty
+    # `.memory-bank/` dir too, but never touch the *root* `.memory-bank/` (which
+    # holds collections.yaml — a project dir named that would be pathological).
+    for manifest in sorted((root / "projects").glob("*/.memory-bank/collection.yaml")):
+        changed = True
+        if args.check:
+            print(f"[--check] Would remove stale manifest {manifest}.")
+            continue
+        manifest.unlink()
+        print(f"Removed stale manifest {manifest}")
+        mdir = manifest.parent
+        if mdir != root / ".memory-bank" and not any(mdir.iterdir()):
+            mdir.rmdir()
+
+    if not changed:
+        print("collections.yaml already migrated and no stale manifests; no changes.")
+    elif args.check:
+        print("[--check] No changes written.")
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("init-project", help="Initialize project memory structure")
+    p = sub.add_parser(
+        "init-project",
+        help="Initialize project memory structure and register it with qmd",
+        description=(
+            "Scaffolds projects/<project>/, writes collections.yaml as the source of "
+            "truth, then invokes qmd registration (qmd collection add + qmd context add) "
+            "so the config and qmd's index cannot drift. --repo is repeatable to seed "
+            "more than one observed repo; --description/--domain annotate the collection."
+        ),
+    )
     p.add_argument("--memory-root", "--root", dest="root", required=True)
     p.add_argument("--project", required=True)
-    p.add_argument("--repo")
+    p.add_argument(
+        "--repo", action="append",
+        help="Observed repo path (repeatable). Seeds the project's repos: association list.",
+    )
+    p.add_argument(
+        "--description",
+        help="Generic, collection-level summary attached as the qmd context "
+             "(not effort-specific). Defaults to a template if omitted.",
+    )
+    p.add_argument("--domain", help="Optional domain/tag recorded in collections.yaml.")
     p.set_defaults(func=init_project)
 
     p = sub.add_parser("new-work", help="Create an epic/story/task/spike")
@@ -632,6 +770,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--title", required=True)
     p.add_argument("--id")
     p.add_argument("--domain")
+    p.add_argument(
+        "--repo",
+        help="Repo this work item touches, accreted into the project's repos: "
+             "association list. Defaults to the current git root if omitted.",
+    )
     p.add_argument(
         "--status", choices=WORK_STATUSES, default="open",
         help="Initial WorkStatus (default: open). Validated against the closed enum.",
@@ -721,8 +864,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="One-time migration of collections.yaml to the repos: list schema",
         description=(
             "Converts single-string `repo:` entries to a `repos:` list and drops the "
-            "legacy `kind: global` umbrella block, preserving all comments. Idempotent. "
-            "Use --check for a dry-run diff that writes nothing."
+            "legacy `kind: global` umbrella block, preserving all comments. Also removes "
+            "stale per-project `.memory-bank/collection.yaml` manifests (dropped by "
+            "design Decision 6; nothing reads them). Idempotent. Use --check for a "
+            "dry-run that writes nothing."
         ),
     )
     p.add_argument("--memory-root", "--root", dest="root", required=True)

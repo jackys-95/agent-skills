@@ -6,11 +6,18 @@ This repo is developed with a local, private [task-memory-bank](skills/task-memo
 (tmb). tmb identifiers and terminology are **local metadata** — they live only in the memory bank
 on the developer's machine and must never leak into anything GitHub-facing.
 
-**Never put these in a branch name, commit message, PR title/body, or issue:**
+**Never put these in a branch name, commit message, PR title/body, issue, or checked-in source
+(code comments, docstrings, test names, doc prose):**
 
 - Work-item IDs: `TASK-####`, `EPIC-####`, `STORY-####`, `SPIKE-####`
 - tmb-internal file paths (`work/tasks/...`, `active.md`, `history/...`) or the phrase
   "task memory bank" as a reference to a specific local item
+
+This applies to code and tests just as much as to Git metadata. A comment that says
+`# drift check (TASK-0004)` or a docstring like `"""...wiring added in TASK-0004."""` leaks the
+local ID into the public record. Describe *what the code does* and reference the GitHub issue
+(`#21`) if you need a pointer — never the work-item ID. ("Task memory bank" as the **name of the
+product/skill** is fine; only its use as a handle for a specific local item is off-limits.)
 
 **Use public identifiers instead:**
 

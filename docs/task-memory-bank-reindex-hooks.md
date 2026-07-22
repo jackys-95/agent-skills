@@ -145,7 +145,7 @@ paths for *all* collections — `collections.yaml` omits KB, query-kb's `registr
 entirely (it delegates them to qmd). Second, registration is **asymmetric** and partly manual:
 
 - **tmb** collections: `init-project` only *prints* `qmd collection add` today (auto-registration is
-  backlog **TASK-0004**).
+  backlog under [#21](https://github.com/jackys-95/agent-skills/issues/21)).
 - **knowledge** collections: registered by the `knowledge-files` authoring skill, whose new-collection workflow appends a `contains`/`domain` entry to query-kb's registry (at `~/.config/qmd/registry.yaml`) alongside a `qmd collection add` for the path. A human `qmd collection add` plus a hand-edited registry line also works.
 
 A human `qmd collection add` bypasses any skill anyway — but every path **rewrites

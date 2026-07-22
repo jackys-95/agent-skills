@@ -57,7 +57,7 @@ collections:
 
 The first implementation can use this only to find watch roots and affected collection names. If qmd later supports collection-scoped update/embed commands, the same config can drive narrower reindexing.
 
-Each project collection should also carry its own `.memory-bank/collection.yaml` manifest with `path: .`. The root config is for cross-project lookup and watcher routing; the project-local manifest is for collection-local metadata that can travel with the project memory and be indexed when qmd includes YAML files.
+The root `collections.yaml` is the single source of truth for watcher routing and cross-project lookup; there is no per-project `.memory-bank/collection.yaml` manifest (design Decision 6).
 
 ## Memory-Efficient Runtime Model
 
