@@ -140,7 +140,7 @@ def main() -> int:
 
     if zed_is_running():
         print(
-            "Zed is running — quit it (Cmd+Q) before pruning. SQLite is locked "
+            "Zed is running — quit it (Cmd+Q on macOS, Ctrl+Q on Linux) before pruning. SQLite is locked "
             "while Zed is open, and Zed may overwrite the DB on exit, clobbering "
             "any changes.",
             file=sys.stderr,

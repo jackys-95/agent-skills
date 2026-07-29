@@ -11,7 +11,7 @@ The PreToolUse hook prints a `[Zed]` line containing the snapshot path before CC
 The diff itself does not open until the turn ends (the `Stop` hook flushes it).
 
 - **No reply** — user accepted; the files on disk have CC's versions
-- **Cmd+S in Zed** — user kept their edits in the diff view; that file on disk has their version
+- **Saved in Zed (Cmd+S on macOS, Ctrl+S on Linux)** — user kept their edits in the diff view; that file on disk has their version
 - **User replies `r <file>`** — revert one file: run
   `python3 ~/.claude/hooks/revert_zed_snapshot.py <file_path>` for that file (match it to the
   most recent `[Zed]` line for that path), then ask what they want instead

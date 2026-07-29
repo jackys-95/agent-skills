@@ -64,7 +64,7 @@ Diffs are batched per CC turn (one turn = one user prompt) and flushed on the `S
 5. **Turn end** — the `Stop` hook opens ONE `zed -a --diff <base> <file> --diff <base> <file> …` covering every file changed this turn, non-blocking, bringing Zed to the front once. `--diff` given many pairs renders them in a single multi-diff pane. The `-a`/`--add` flag pins the diff to the active workspace, so a diff on a file outside the current project (e.g. a task-memory-bank file, or a cross-package edit in a multi-repo workspace) doesn't swap the window's project. New files (no snapshot) diff against an empty base (`/dev/null`); using `--diff` for every operand keeps each path a diff buffer rather than attaching it to the workspace as a loose worktree.
 6. You review the multi-diff in Zed at your own pace.
 
-If CC is running inside `tmux` (terminal thread → `tmux` → `claude`), the Stop hook also starts a background watcher for each changed file that has a snapshot. When you save your edits in Zed (Cmd+S), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed.
+If CC is running inside `tmux` (terminal thread → `tmux` → `claude`), the Stop hook also starts a background watcher for each changed file that has a snapshot. When you save your edits in Zed (Cmd+S on macOS, Ctrl+S on Linux), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed.
 
 ## Maintenance: stray memory-bank root in the project panel
 
@@ -73,7 +73,7 @@ Zed persists every folder it has opened as a root (in its workspace DB and `trus
 This is persisted residue, not a live recurrence. To clear it:
 
 ```bash
-# Quit Zed first (Cmd+Q on macOS) — the DB is locked while Zed runs.
+# Quit Zed first (Cmd+Q on macOS, Ctrl+Q on Linux) — the DB is locked while Zed runs.
 python3 adapters/zed/prune_stale_roots.py           # dry run: show what would be pruned
 python3 adapters/zed/prune_stale_roots.py --apply    # back up the DB, then prune
 ```
@@ -83,7 +83,7 @@ The script only removes roots that are memory-bank residue or dead paths (direct
 ## UX
 
 - **Accept** — do nothing, CC has already moved on.
-- **Edit** — make changes in Zed and Cmd+S to save. If running inside tmux, CC is automatically notified with a diff of your changes.
+- **Edit** — make changes in Zed and save (Cmd+S on macOS, Ctrl+S on Linux). If running inside tmux, CC is automatically notified with a diff of your changes.
 - **Revert one file** — reply `r <file>` in the CC panel. CC reads the snapshot path from that file's `[Zed]` line and writes it back (restoring its turn-start state).
 - **Revert all** — reply `revert all` to roll back every file CC changed this turn.
 

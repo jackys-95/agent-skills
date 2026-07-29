@@ -31,6 +31,11 @@ BUNDLED_ZED_CLI = {
     "linux": pathlib.Path.home() / ".local" / "bin" / "zed",
 }.get(sys.platform)
 
+# tmux edit-injection watcher binary per platform (see tmux_diff_injector.py).
+# Only needed for the tmux edit-injection feature — its absence doesn't break
+# the core diff-batching flow, so this is a warning, not a hard requirement.
+WATCHER_BIN = {"darwin": "fswatch", "linux": "inotifywait"}.get(sys.platform)
+
 # Claude Code global config
 CLAUDE_SETTINGS = pathlib.Path.home() / ".claude" / "settings.json"
 CLAUDE_HOOKS_DIR = pathlib.Path.home() / ".claude" / "hooks"
@@ -139,6 +144,30 @@ def check_zed_cli():
     return False
 
 
+def check_watcher():
+    """Warn if the tmux edit-injection watcher binary isn't on PATH.
+
+    Only affects the tmux edit-injection feature (`tmux_diff_injector.py`); the
+    core diff-batching flow works without it. Returns True if found.
+    """
+    if not WATCHER_BIN:
+        return True
+    if shutil.which(WATCHER_BIN):
+        return True
+
+    print(f"\n⚠️  `{WATCHER_BIN}` is not on your PATH.")
+    print("   If you run CC inside tmux, the Stop hook uses it to notice when you")
+    print("   save an edit in Zed and inject the diff back into CC's input. Without")
+    print("   it, that tmux edit-injection feature silently does nothing (the core")
+    print("   diff-batching flow is unaffected).\n")
+    if sys.platform == "darwin":
+        print("   Install with: brew install fswatch")
+    else:
+        print("   Install with: sudo apt install inotify-tools  (or your distro's equivalent)")
+    print(f"   Verify with: {WATCHER_BIN} --version\n")
+    return False
+
+
 def main():
     CLAUDE_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
     claude_settings = load_settings()
@@ -172,6 +201,8 @@ def main():
 
     # Preflight: the diff pane silently no-ops without the `zed` CLI on PATH.
     check_zed_cli()
+    # Preflight: tmux edit-injection silently no-ops without the watcher binary.
+    check_watcher()
 
 
 if __name__ == "__main__":
