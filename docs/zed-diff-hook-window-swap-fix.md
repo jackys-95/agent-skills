@@ -7,8 +7,7 @@
 
 > **History:** this file replaces an earlier `zed-diff-hook-batching-design.md` whose root-cause
 > analysis (a concurrency bug) and fix (a batch-and-flush queue) were **wrong**. The correction is
-> recorded below and in SPIKE-0001 session-004. Keeping the corrected reasoning here on purpose —
-> the misdiagnosis is instructive.
+> recorded below. Keeping the corrected reasoning here on purpose — the misdiagnosis is instructive.
 
 ---
 
@@ -36,7 +35,7 @@ cross-package edits in multi-repo work.
 
 ### Two earlier theories, both falsified
 
-The first investigation (SPIKE-0001 sessions 002–003) concluded the trigger was **concurrency** —
+The first investigation concluded the trigger was **concurrency** —
 N fire-and-forget `zed` processes per multi-file turn coalescing on a common ancestor. A live
 single-file edit later swapped the window, which **falsifies concurrency** (one process did it),
 and it swapped to an unrelated most-recently-used project, not the diff files' common ancestor,

@@ -82,7 +82,7 @@ def main():
 
     # `-a`/`--add` opens the diff in the currently focused workspace instead of
     # letting Zed pick a window by its own heuristic — without it, a diff on a file
-    # OUTSIDE the focused project swaps the active window's project (see TASK-0012).
+    # OUTSIDE the focused project swaps the active window's project.
     # `--diff` is repeatable and, given many pairs, renders them in a SINGLE
     # multi-diff pane — so a large turn opens one pane, not one window per file, and
     # Zed fronts exactly once. Every operand is a `--diff` pair (never a bare path),

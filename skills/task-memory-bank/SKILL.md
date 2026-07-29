@@ -12,12 +12,13 @@ Use a qmd-backed markdown memory bank to keep project and work-item context slim
 
 - Keep the memory bank outside app repos unless the user asks otherwise.
 - Separate projects by folder and qmd collection/context.
-- Load only entrypoint files first: project `.memory-bank/collection.yaml`, project `README.md`, project `active.md`, work item `README.md`, and work item `active.md`.
+- Load only entrypoint files first: project `README.md`, project `active.md`, work item `README.md`, and work item `active.md`. The bank-root `.memory-bank/collections.yaml` is the source-of-truth config (there is no per-project manifest).
 - **Never use filesystem tools to explore or search the memory bank.** Use qmd MCP tools (`query`, `get`, `multi_get`) or the qmd CLI. Filesystem tools miss embeddings, bypass collection scoping, and encourage loading entire trees.
 - Use qmd search for supporting context instead of reading whole trees.
 - Treat `active.md` as current resumable state, not historical record. It must not contain session summaries, outcomes, or historical detail.
 - **Write history first, then update active.md.** Session detail goes in `history/YYYY-MM-DD-session-NNN.md` before `active.md` is rewritten. `active.md` links only to the latest session file; each session file links to its predecessor (reverse linked-list).
 - Create designs, specs, decisions, and attempts only when the work warrants them.
+- **Soft-wrap prose — one line per paragraph, never hard-wrap mid-sentence.** Hard wraps render as stray newlines and break phrase/link greps.
 - **Work in phase checkpoints.** Plan before editing — and persist the plan into the work item,
   so implementation can resume cold in another session or model — and close out memory separately
   from implementation. See the Phase Checkpoints workflow in
@@ -36,7 +37,7 @@ For deterministic scaffolding, use:
 ```bash
 python3 <skill-dir>/scripts/memory_bank.py init-project --root ~/memory/task-memory-bank --project example_project --repo ~/work/example-project
 python3 <skill-dir>/scripts/memory_bank.py new-work --root ~/memory/task-memory-bank --project example_project --type task --title "Fix saved filter state"
-python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
+python3 <skill-dir>/scripts/memory_bank.py suggest-projects --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
 ```
 
 `<skill-dir>` is this skill's own directory — resolve the script path relative to it.
@@ -54,8 +55,6 @@ task-memory-bank/
     collections.yaml
   projects/
     <project>/
-      .memory-bank/
-        collection.yaml
       README.md
       active.md
       overviews/
@@ -108,13 +107,13 @@ See [references/workflows.md](references/workflows.md) for resume, update, hando
 
 ## qmd Usage
 
-Before searching qmd from a repo, resolve the repo to its memory project:
+Before searching qmd from a repo, gather candidate projects for the repo:
 
 ```bash
-python3 <skill-dir>/scripts/memory_bank.py resolve-project --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
+python3 <skill-dir>/scripts/memory_bank.py suggest-projects --root ~/memory/task-memory-bank --repo "$(git rev-parse --show-toplevel)" --json
 ```
 
-Use the returned `collection`, `memory_path`, and `read_first` files. Do not guess collection names when `.memory-bank/collections.yaml` is available.
+This returns ranked `candidates` (across every bank qmd knows about), each with `collection`, `memory_path`, and `read_first`. Selection is a declaration: take the top candidate when unambiguous, otherwise choose from the shortlist. Do not guess collection names when `.memory-bank/collections.yaml` is available.
 
 **`get` path format:** Search results return paths relative to their collection. Prepend the collection name before calling `get`: `mb-<project>/path/from/search`. Bare paths return "Document not found" with no hint about the missing prefix. Alternatively, use the `docid` (`#abc123`) from search results — docids work without a prefix.
 

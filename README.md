@@ -9,22 +9,44 @@ macOS and Linux are both supported. For Zed users, Windows is out of scope until
 ## Skills
 
 - [task-memory-bank](skills/task-memory-bank/SKILL.md): qmd-backed project/task memory bank workflows.
+- [query-kb](skills/query-kb/SKILL.md): qmd-backed knowledge base retrieval (knowledge files + learning primers); delegates task scope to task-memory-bank.
+- [knowledge-files](skills/knowledge-files/SKILL.md): qmd-backed knowledge file authoring (classify, split into per-entity files, cross-reference, promote learning → knowledge); the write side of the knowledge base.
+
+## Tests
+
+Run installer unit tests with:
+
+```bash
+python3 -m unittest discover -s scripts -p 'test_*.py'
+```
 
 ## Install For Codex
 
-This repository is the source of truth for authored skills. To make a skill
-available to Codex locally, install it into the shared local agent skills
-directory:
+This repository is the source of truth for authored skills. Install the Codex
+adapter into the shared local agent skills directory with:
 
 ```bash
-mkdir -p ~/.agents/skills/task-memory-bank
-cp -R skills/task-memory-bank/. ~/.agents/skills/task-memory-bank/
+python3 scripts/install_codex.py
 ```
 
 Codex discovers installed skills from:
 
 ```text
 ~/.agents/skills/<skill-name>/SKILL.md
+```
+
+The installer copies `skills/task-memory-bank`, renders `memory-*` wrapper
+skills from the Codex adapter manifest, copies plain skills listed in the
+manifest (`skills/query-kb`, `skills/knowledge-files`), and installs the qmd
+skill dependency when possible. It also upserts tagged Codex guidance into
+`~/.codex/AGENTS.md`. It does not install Codex hooks yet; use the
+`memory-reindex` wrapper as the manual fallback after memory-bank edits.
+
+**query-kb setup:** query-kb reads a `registry.yaml` listing the knowledge/learning collections to search. It lives at a **harness-neutral** path beside qmd's own config — `${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml` — so every harness's skill copy reads one shared file. It is normally created and grown by the `knowledge-files` authoring skill when you add a collection; to bootstrap by hand, copy the schema reference and fill in your collection names:
+
+```bash
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/qmd"
+cp ~/.agents/skills/query-kb/assets/registry.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/qmd/registry.yaml"
 ```
 
 This is a local Codex/agent convention, not a cross-agent standard. Keep
@@ -39,13 +61,20 @@ This repository includes Claude Code adapter source under:
 adapters/claude-code/
 ```
 
-Install the canonical skill plus generated `/memory-*` wrappers with:
+Install the skills plus generated `/memory-*` wrappers with:
 
 ```bash
 python3 scripts/install_claude_code.py
 ```
 
-The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skill remains the source of truth.
+The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`, `skills/knowledge-files`), installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skills remain the source of truth.
+
+**query-kb setup:** query-kb reads a `registry.yaml` listing the knowledge/learning collections to search. It lives at a **harness-neutral** path beside qmd's own config — `${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml` — so every harness's skill copy reads one shared file. It is normally created and grown by the `knowledge-files` authoring skill when you add a collection; to bootstrap by hand, copy the schema reference and fill in your collection names:
+
+```bash
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/qmd"
+cp ~/.claude/skills/query-kb/assets/registry.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/qmd/registry.yaml"
+```
 
 **Prerequisite:** qmd is required for task-memory-bank to work. The installer handles this automatically; if you prefer to install manually:
 

@@ -1,0 +1,45 @@
+# query-kb registry — knowledge-base collections catalog (EXAMPLE / SCHEMA REFERENCE)
+#
+# This is a schema reference, not the live file. The real registry lives at a
+# harness-neutral location beside qmd's own config, so every harness's skill copy
+# reads one shared file:
+#
+#     ${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml
+#
+# It is normally born and grown by the knowledge-files authoring skill, which appends
+# an entry whenever it creates a new collection. To bootstrap by hand instead:
+#     mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/qmd"
+#     cp assets/registry.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/qmd/registry.yaml"
+#
+# The live file is outside the repo (never committed) — collection names can encode
+# internal program/project identifiers that must stay local, the same way task-memory-bank
+# identifiers stay local (see repo CLAUDE.md).
+#
+# Owned by the query-kb skill. Catalogs the KNOWLEDGE and LEARNING collections that
+# query-kb searches directly. It does NOT enumerate task collections: task scope is
+# resolved by delegating to the task-memory-bank skill (which owns its own collections.yaml).
+#
+# This registry owns only the CLASSIFICATION axis (contains + domain). Physical layout
+# (path, pattern) is owned by qmd's own config (~/.config/qmd/index.yml) — do not
+# duplicate it here; the two would drift.
+#
+# Fields per collection:
+#   contains: knowledge | learning
+#             (task collections are `tasks`, but they live in tmb, not here)
+#   domain:   program/grouping membership tag. Membership is metadata, not folder nesting.
+#             Omit or use `default` for cross-cutting / personal collections with no program.
+#
+# Scope selector (see SKILL.md) maps a requested scope to a set of collections:
+#   knowledge -> every collection here with contains: knowledge
+#   learning  -> every collection here with contains: learning
+#   tasks     -> delegate to task-memory-bank (NOT listed here)
+#   both/all  -> the union, fanned out with a min-score cutoff (never a shared top-K)
+# For the exact qmd scoping flag and min-score parameter, defer to the qmd skill (/qmd).
+
+collections:
+  example-knowledge:
+    contains: knowledge
+    domain: example-program
+  example-learning:
+    contains: learning
+    domain: example-program

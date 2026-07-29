@@ -2,4 +2,9 @@
 __pycache__/
 .idea/
 .vscode/
+.venv/
 
+# query-kb local registry — real collection names stay local. Canonical location is now
+# harness-neutral (~/.config/qmd/registry.yaml), outside the repo. This defensive ignore
+# catches a stray registry left at the old skill root. See skills/query-kb/assets/registry.example.yaml
+skills/query-kb/registry.yaml

@@ -1,7 +1,7 @@
 canonical_skill = "task-memory-bank"
 canonical_skill_source = "skills/task-memory-bank"
 
-# Plain skills: copied verbatim to the CC skills dir, no generated wrappers.
+# Plain skills: copied verbatim to the Codex skills dir, no generated wrappers.
 [[skills]]
 name = "query-kb"
 source = "skills/query-kb"
@@ -36,7 +36,7 @@ name = "memory-update"
 workflow = "memory.update"
 description = "Append history and refresh active context for a task memory bank work item."
 argument_hint = "[work-path] [summary]"
-body = "Append history and rewrite `active.md` as compact current state. Do not reindex qmd inline — the reindex hooks handle it after the turn settles. Expected inputs: work item path and session summary. Ask only for missing required inputs."
+body = "Append history and rewrite `active.md` as compact current state. Reindex only after the write is settled. Expected inputs: work item path and session summary. Ask only for missing required inputs."
 
 [[wrappers]]
 name = "memory-branch"
@@ -50,14 +50,14 @@ name = "memory-handoff"
 workflow = "memory.handoff"
 description = "Write a concise handoff for a task memory bank work item."
 argument_hint = "[work-path]"
-body = "Write a concise handoff into history and compact `active.md`. Do not reindex qmd inline — the reindex hooks handle it after the turn settles. Expected input: work item path. Ask only if the active work item cannot be inferred."
+body = "Write a concise handoff into history and compact `active.md`. Reindex only after the write is settled. Expected input: work item path. Ask only if the active work item cannot be inferred."
 
 [[wrappers]]
 name = "memory-reindex"
 workflow = "memory.reindex"
-description = "Manually reindex qmd after task memory bank markdown changes (fallback when the reindex hooks don't fire)."
+description = "Manually reindex qmd after task memory bank markdown changes."
 argument_hint = "[optional-collection-or-memory-root]"
-body = "Manual fallback for when the reindex hooks don't run (not installed, or a hard-killed session that skipped the lifecycle events). Run the shared reindex flow via `memory_bank.py reindex`, preferring a collection-scoped embed (`--collection <name>`) and falling back to `qmd update` and `qmd embed`. Do not modify memory markdown unless the user explicitly asks for repair."
+body = "Manual fallback for when Codex reindex hooks are not installed. Run the shared reindex flow via `memory_bank.py reindex`, preferring a collection-scoped embed (`--collection <name>`) and falling back to `qmd update` and `qmd embed`. Do not modify memory markdown unless the user explicitly asks for repair."
 
 [[wrappers]]
 name = "memory-doctor"
