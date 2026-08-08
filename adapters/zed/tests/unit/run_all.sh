@@ -3,6 +3,11 @@
 set -euo pipefail
 DIR="$(dirname "$0")"
 
+echo "=== adapters/core (manifest.py, snapshot_revert.py) ==="
+python3 "$DIR/../../../core/tests/test_snapshot_revert.py"
+python3 "$DIR/../../../core/tests/test_manifest.py"
+
+echo ""
 echo "=== pre_edit_zed_snapshot.py ==="
 bash "$DIR/test_pre_hook.sh"
 

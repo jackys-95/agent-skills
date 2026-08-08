@@ -4,10 +4,11 @@
 Usage: python3 revert_zed_snapshot.py <file_path>
 """
 import os
-import shutil
 import sys
 
-from _zed_common import pointer_path
+import snapshot_revert
+
+NAMESPACE = "cc_zed"
 
 
 def main():
@@ -16,28 +17,8 @@ def main():
         sys.exit(1)
 
     file_path = os.path.abspath(sys.argv[1])
-    pointer = pointer_path(file_path)
-
-    if not os.path.isfile(pointer):
-        print(f"No snapshot pointer found for {file_path}", file=sys.stderr)
-        sys.exit(1)
-
-    snapshot = open(pointer).read().strip()
-
-    # A /dev/null pointer means the file did not exist at turn start (created this
-    # turn by Write). Reverting = restoring "did not exist" = deleting it.
-    if snapshot == os.devnull:
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-        print(f"Reverted {file_path} — deleted (was created this turn)")
-        return
-
-    if not os.path.isfile(snapshot):
-        print(f"Snapshot file missing: {snapshot}", file=sys.stderr)
-        sys.exit(1)
-
-    shutil.copyfile(snapshot, file_path)
-    print(f"Reverted {file_path} to {snapshot}")
+    ok = snapshot_revert.revert(NAMESPACE, file_path)
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

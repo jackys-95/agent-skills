@@ -21,6 +21,11 @@ from hook_install import install_hook, load_settings, save_settings  # noqa: E40
 HOOKS_DIR = pathlib.Path(__file__).parent / "hooks"
 ADAPTER_CLAUDE_MD = pathlib.Path(__file__).parent / "CLAUDE.md"
 
+# Harness-agnostic manifest/snapshot/revert core (adapters/core/, sibling of
+# adapters/zed/) — deployed flat alongside the hooks, same as _zed_common.py, so
+# `import manifest` / `import snapshot_revert` resolve via same-directory sys.path.
+CORE_DIR = pathlib.Path(__file__).resolve().parent.parent / "core"
+
 # Zed bundles its CLI inside the .app; a Homebrew cask install symlinks it onto
 # PATH, but a direct .app download does not unless you run `cli: install`.
 # The post-edit hook calls `zed -a --diff` and fails silently if it's missing.
@@ -72,11 +77,14 @@ HOOKS = [
 ]
 
 # Scripts copied to hooks dir but not registered as CC hooks.
-# _zed_common.py is the shared module the hooks import — it MUST land beside them.
+# _zed_common.py, manifest.py, and snapshot_revert.py are modules the hooks import —
+# they MUST land beside them.
 SCRIPTS = [
     HOOKS_DIR / "_zed_common.py",
     HOOKS_DIR / "revert_zed_snapshot.py",
     HOOKS_DIR / "tmux_diff_injector.py",
+    CORE_DIR / "manifest.py",
+    CORE_DIR / "snapshot_revert.py",
 ]
 
 
