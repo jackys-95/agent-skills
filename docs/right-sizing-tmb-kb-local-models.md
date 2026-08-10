@@ -250,3 +250,36 @@ This is the re-scoped pilot. It is self-scoring through the CLI's enum validatio
 - Should `active.md` get a deterministic interface before it is measured, or is it more informative to measure the unscripted case first? Tracked as #68; the answer changes what Layer 4 measures.
 - Fixture scale and human-label volume needed for judge validation at Layer 3.
 - Definition of "correct" for placement and promotion when human and model judges disagree — whose call governs?
+
+## 15. Preliminary Signal (ad hoc, pre-pilot)
+
+Not part of the controlled experiment — one manual smoke test, logged because it produced a
+concrete failure signature worth watching for once the real fixture exists.
+
+**Setup:** a Pi extension (`~/.pi/agent/extensions/sirius-review.ts`, global scope) registers
+`qwen3.6-27b-q5km` served from sirius's llama.cpp router as a provider, plus a `/review-pr`
+command that fetches a PR diff via `gh` and hands it to the model with a review prompt. Run
+against PR #66 (adapter core extraction), reviewed independently against the actual diff.
+
+**Result: 3 of 4 findings correct, 1 confidently wrong.**
+
+- Two real defects correctly identified and accurately quoted: an O(N) manifest
+  read-modify-write loop (`bulk_seed` calling `_load`+`_save` per file instead of batching), and
+  a non-atomic manifest write (`_save` writing directly to the final path instead of
+  write-temp-then-rename).
+- A real policy violation (checked-in tmb identifiers) correctly caught at all 6 occurrences —
+  but every claimed line number was off (by 2 to 12 lines), so location precision cannot be
+  trusted even when the finding itself is right.
+- One finding was **invented but plausible-sounding**: a claimed failure path through
+  `os.path.isfile("/dev/null")` returning `True` on Unix and causing silent truncation via
+  `shutil.copyfile`. Directly tested: `os.path.isfile("/dev/null")` is `False` (it's a character
+  device, not a regular file — `isfile` only follows `S_ISREG`). The premise it was hung on
+  (pointer file format changed, so old-format pointers won't resolve at the new path) is true and
+  harmless; the specific mechanism asserted for the edge case is fabricated Unix-semantics detail
+  dressed up as a verified claim.
+
+**Why this matters for the design:** this is exactly the Layer 3/4 risk named in §6 and §11 —
+a silent, confident, wrong claim about system behavior, not a loud validation-rejected error.
+A single sample doesn't establish a rate, but it's a concrete instance of the failure mode the
+fixture needs to be able to catch, and argues for verifying any local-model-claimed *mechanism*
+(not just the flagged location) against actual behavior before trusting it unsupervised.
