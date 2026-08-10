@@ -32,7 +32,7 @@ Usage:
     python3 prune_stale_roots.py            # dry run: show what would be pruned
     python3 prune_stale_roots.py --apply    # back up, then prune
 
-Quit Zed (Cmd+Q) before running with --apply.
+Quit Zed before running with --apply.
 """
 
 from __future__ import annotations
@@ -66,15 +66,12 @@ RESIDUE_MARKERS = (
 # inside-marker above only, never a container check.
 RESIDUE_CONTAINER_DIRS = ("task-memory-bank",)
 
-DEFAULT_DB = (
-    Path.home()
-    / "Library"
-    / "Application Support"
-    / "Zed"
-    / "db"
-    / "0-stable"
-    / "db.sqlite"
-)
+if sys.platform == "darwin":
+    _ZED_DATA_DIR = Path.home() / "Library" / "Application Support" / "Zed"
+else:
+    _ZED_DATA_DIR = Path.home() / ".local" / "share" / "zed"
+
+DEFAULT_DB = _ZED_DATA_DIR / "db" / "0-stable" / "db.sqlite"
 
 
 def zed_is_running() -> bool:
@@ -233,7 +230,7 @@ def main() -> int:
 
     if zed_is_running():
         print(
-            "Zed is running — quit it (Cmd+Q) before pruning. SQLite is locked "
+            "Zed is running — quit it (Cmd+Q on macOS, Ctrl+Q on Linux) before pruning. SQLite is locked "
             "while Zed is open, and Zed may overwrite the DB on exit, clobbering "
             "any changes.",
             file=sys.stderr,

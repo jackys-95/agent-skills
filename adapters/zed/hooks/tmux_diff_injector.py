@@ -11,6 +11,15 @@ file_path, tmux_pane, gen_token = sys.argv[1], sys.argv[3], sys.argv[4]
 
 TIMEOUT = 120
 
+# One-shot blocking file watcher per platform: fswatch on macOS, inotifywait on
+# Linux (inotify-tools). Both exit after the first event on the watched file.
+WATCH_CMD = {
+    "darwin": ["fswatch", "-1", file_path],
+    "linux": ["inotifywait", "-e", "modify", "-e", "close_write", file_path],
+}.get(sys.platform)
+if WATCH_CMD is None:
+    sys.exit(0)
+
 
 def gen_stale():
     try:
@@ -30,7 +39,7 @@ try:
         if remaining <= 0:
             sys.exit(0)
         subprocess.run(
-            ["fswatch", "-1", file_path],
+            WATCH_CMD,
             timeout=remaining,
             check=True,
             stdout=subprocess.DEVNULL,

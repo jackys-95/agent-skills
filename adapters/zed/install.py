@@ -26,10 +26,20 @@ ADAPTER_CLAUDE_MD = pathlib.Path(__file__).parent / "CLAUDE.md"
 # `import manifest` / `import snapshot_revert` resolve via same-directory sys.path.
 CORE_DIR = pathlib.Path(__file__).resolve().parent.parent / "core"
 
-# Zed bundles its CLI inside the .app; a Homebrew cask install symlinks it onto
-# PATH, but a direct .app download does not unless you run `cli: install`.
-# The post-edit hook calls `zed -a --diff` and fails silently if it's missing.
-BUNDLED_ZED_CLI = pathlib.Path("/Applications/Zed.app/Contents/MacOS/cli")
+# Fallback CLI location per platform. macOS: Zed bundles its CLI inside the .app;
+# a Homebrew cask install symlinks it onto PATH, but a direct .app download does
+# not unless you run `cli: install`. Linux: the official install script places the
+# CLI at ~/.local/bin/zed. The post-edit hook calls `zed -a --diff` and fails
+# silently if it's missing.
+BUNDLED_ZED_CLI = {
+    "darwin": pathlib.Path("/Applications/Zed.app/Contents/MacOS/cli"),
+    "linux": pathlib.Path.home() / ".local" / "bin" / "zed",
+}.get(sys.platform)
+
+# tmux edit-injection watcher binary per platform (see tmux_diff_injector.py).
+# Only needed for the tmux edit-injection feature — its absence doesn't break
+# the core diff-batching flow, so this is a warning, not a hard requirement.
+WATCHER_BIN = {"darwin": "fswatch", "linux": "inotifywait"}.get(sys.platform)
 
 # Claude Code global config
 CLAUDE_SETTINGS = pathlib.Path.home() / ".claude" / "settings.json"
@@ -128,14 +138,41 @@ def check_zed_cli():
     print("\n⚠️  The `zed` CLI is not on your PATH.")
     print("   The post-edit hook runs `zed -a --diff` to open the review pane; without")
     print("   the CLI it fails silently and no diff appears.\n")
-    if BUNDLED_ZED_CLI.exists():
-        print("   Zed is installed, but its CLI isn't linked. Fix it with either:")
+    if BUNDLED_ZED_CLI and BUNDLED_ZED_CLI.exists():
+        print("   Zed is installed, but its CLI isn't on PATH. Fix it with either:")
         print("     • In Zed: command palette → `cli: install`")
         print(f"     • Shell:  ln -s {BUNDLED_ZED_CLI} /usr/local/bin/zed")
-    else:
+    elif sys.platform == "darwin":
         print("   Install Zed (https://zed.dev) and then run its `cli: install` command,")
         print("   or `brew install --cask zed` which links the CLI for you.")
+    else:
+        print("   Install Zed for Linux (https://zed.dev/docs/linux) and make sure")
+        print("   ~/.local/bin is on your PATH.")
     print("   Verify with: zed --version\n")
+    return False
+
+
+def check_watcher():
+    """Warn if the tmux edit-injection watcher binary isn't on PATH.
+
+    Only affects the tmux edit-injection feature (`tmux_diff_injector.py`); the
+    core diff-batching flow works without it. Returns True if found.
+    """
+    if not WATCHER_BIN:
+        return True
+    if shutil.which(WATCHER_BIN):
+        return True
+
+    print(f"\n⚠️  `{WATCHER_BIN}` is not on your PATH.")
+    print("   If you run CC inside tmux, the Stop hook uses it to notice when you")
+    print("   save an edit in Zed and inject the diff back into CC's input. Without")
+    print("   it, that tmux edit-injection feature silently does nothing (the core")
+    print("   diff-batching flow is unaffected).\n")
+    if sys.platform == "darwin":
+        print("   Install with: brew install fswatch")
+    else:
+        print("   Install with: sudo apt install inotify-tools  (or your distro's equivalent)")
+    print(f"   Verify with: {WATCHER_BIN} --version\n")
     return False
 
 
@@ -172,6 +209,8 @@ def main():
 
     # Preflight: the diff pane silently no-ops without the `zed` CLI on PATH.
     check_zed_cli()
+    # Preflight: tmux edit-injection silently no-ops without the watcher binary.
+    check_watcher()
 
 
 if __name__ == "__main__":

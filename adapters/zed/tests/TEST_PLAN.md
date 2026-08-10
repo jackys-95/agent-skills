@@ -26,6 +26,7 @@ bash adapters/zed/tests/unit/test_pre_hook.sh
 bash adapters/zed/tests/unit/test_post_hook.sh
 bash adapters/zed/tests/unit/test_reset_hook.sh
 bash adapters/zed/tests/unit/test_stop_hook.sh
+bash adapters/zed/tests/unit/test_platform_paths.sh
 ```
 
 ### Pre-hook (`pre_edit_zed_snapshot.py`)
@@ -62,6 +63,19 @@ bash adapters/zed/tests/unit/test_stop_hook.sh
 | 3c | Multi-file turn (one with snapshot, one new) | ONE `zed -a --diff …` with a `--diff` pair per file; new file diffs against `/dev/null` |
 | 3d | After a flush | Markers cleared → a second `Stop` is a no-op |
 
+### Platform paths (`_zed_common.py`, `install.py`, `prune_stale_roots.py`, `tmux_diff_injector.py`)
+
+Forces `sys.platform` to `darwin`/`linux` before import (or, for the watcher, via a fake
+`fswatch`/`inotifywait` shim on `PATH`) to verify the Linux-support branches added in
+`feat(zed-adapter): add Linux support` without needing both OSes.
+
+| ID | Scenario | Expected |
+|----|----------|----------|
+| 7a | `_zed_common.BUNDLED_ZED_CLI` | darwin → `.app` CLI path; linux → `~/.local/bin/zed` |
+| 7b | `install.BUNDLED_ZED_CLI` / `install.WATCHER_BIN` | darwin → `.app` CLI path / `fswatch`; linux → `~/.local/bin/zed` / `inotifywait` |
+| 7c | `prune_stale_roots.DEFAULT_DB` | darwin → `Library/Application Support/Zed/...`; linux → `.local/share/zed/...` |
+| 7d | `tmux_diff_injector.WATCH_CMD` | darwin → `fswatch -1 <file>`; linux → `inotifywait -e modify -e close_write <file>` |
+
 ---
 
 ## UX Tests (manual, requires Zed + CC running)
@@ -82,9 +96,9 @@ Prerequisites:
 1. Ask CC to edit a file. When the turn-end diff opens, do nothing.
 2. **Pass**: file on disk has CC's version.
 
-### 5c — Edit in diff + Cmd+S
+### 5c — Edit in diff + save
 
-1. After the turn-end multi-diff opens, change CC's edit to your own version and Cmd+S.
+1. After the turn-end multi-diff opens, change CC's edit to your own version and save (Cmd+S on macOS, Ctrl+S on Linux).
 2. **Pass**: file on disk has your version. (In tmux, the injector reports the saved delta back
    into the pane.)
 

@@ -35,10 +35,20 @@ def main():
 
     zed = resolve_zed()
     if not zed:
+        if sys.platform == "darwin":
+            hint = (
+                "not found on PATH or in /Applications/Zed.app — diff pane "
+                "skipped. Fix: in Zed run command palette → `cli: install`, "
+                "or `brew install --cask zed`."
+            )
+        else:
+            hint = (
+                "not found on PATH or in ~/.local/bin — diff pane skipped. "
+                "Fix: install Zed via https://zed.dev/download and ensure "
+                "~/.local/bin is on PATH."
+            )
         print(
-            "[Zed] `zed` CLI not found on PATH or in /Applications/Zed.app — "
-            "diff pane skipped. Fix: in Zed run command palette → `cli: install`, "
-            "or `brew install --cask zed`. Verify with `zed --version`.",
+            f"[Zed] `zed` CLI {hint} Verify with `zed --version`.",
             file=sys.stderr,
         )
         # Exit 1 so the first stderr line surfaces to the user as a hook-error
