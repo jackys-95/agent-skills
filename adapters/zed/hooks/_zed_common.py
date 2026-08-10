@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Shared helpers for the Zed adapter hooks.
+"""Zed-render-specific helpers for the Zed adapter hooks.
 
-The hook scripts are deployed as flat files into ~/.claude/hooks/, so this module
-sits beside them and is imported by name (the running script's own directory is on
-sys.path). install.py copies it alongside the hooks. Keep this dependency-free.
+The manifest/snapshot/revert primitives live in adapters/core/ (manifest.py,
+snapshot_revert.py) — shared with any future harness's Zed adapter. What's left here is
+genuinely Zed/tmux-render-specific: resolving the `zed` CLI and the tmux
+generation-token helper. Deployed as a flat file into ~/.claude/hooks/, so this module
+sits beside the hooks and core files it imports and is imported by name (the running
+script's own directory is on sys.path). install.py copies it alongside the hooks. Keep
+this dependency-free beyond snapshot_revert.
 """
-import hashlib
 import os
 import shutil
 import sys
+
+from snapshot_revert import path_hash
 
 # Fallback CLI location when `zed` isn't on PATH. macOS: Zed ships its CLI inside
 # the .app — a Homebrew cask install or `cli: install` symlinks it onto PATH, a
@@ -20,47 +25,9 @@ BUNDLED_ZED_CLI = {
 }.get(sys.platform, "")
 
 
-def path_hash(file_path):
-    """Stable short hash of a file path — keys all the /tmp scratch files below."""
-    return hashlib.sha256(file_path.encode()).hexdigest()[:16]
-
-
-def pointer_path(file_path):
-    """File holding the latest snapshot path for file_path (written by pre, read by post/revert)."""
-    return f"/tmp/cc_pre_ptr_{path_hash(file_path)}"
-
-
-def snapshot_path(file_path, ts):
-    """Timestamped pre-edit snapshot of file_path."""
-    return f"/tmp/cc_pre_{path_hash(file_path)}_{ts}"
-
-
 def gen_path(file_path):
     """Generation token file — lets the tmux watcher detect a superseded edit."""
     return f"/tmp/cc_gen_{path_hash(file_path)}"
-
-
-def sanitize_session(session_id):
-    """Reduce a hook event's session id to a filesystem-safe token.
-
-    Turn markers are keyed by session so concurrent Zed threads (each its own CC
-    session) never share a manifest. Falls back to "nosession" when the event
-    carries no id, which degrades gracefully to single-session behavior.
-    """
-    safe = "".join(c for c in (session_id or "") if c.isalnum() or c in "-_")
-    return safe or "nosession"
-
-
-def seen_marker(session_id, file_path):
-    """Per-(session, file) turn marker. Its existence means "already snapshotted
-    this turn" (so pre-hook keeps the FIRST snapshot as the turn-start base); its
-    contents are the file path, so the Stop hook can enumerate the turn's edits."""
-    return f"/tmp/cc_zed_seen_{sanitize_session(session_id)}_{path_hash(file_path)}"
-
-
-def seen_glob(session_id):
-    """Glob matching every turn marker for a session — the Stop-hook manifest."""
-    return f"/tmp/cc_zed_seen_{sanitize_session(session_id)}_*"
 
 
 def resolve_zed():

@@ -10,13 +10,16 @@ ok()   { echo "PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 # Runs a python snippet with sys.platform forced to $1 before importing the
-# module named by $2 from $3 (a directory added to sys.path).
+# module named by $2 from $3 (one or more :-separated directories added to
+# sys.path — _zed_common.py needs both hooks/ and core/ since it imports
+# path_hash from snapshot_revert.py).
 run_forced() {
-    local plat="$1" mod="$2" dir="$3" code="$4"
+    local plat="$1" mod="$2" dirs="$3" code="$4"
     python3 -c "
 import sys
 sys.platform = '$plat'
-sys.path.insert(0, '$dir')
+for d in '$dirs'.split(':'):
+    sys.path.insert(0, d)
 import importlib
 mod = importlib.import_module('$mod')
 $code
@@ -24,10 +27,10 @@ $code
 }
 
 # _zed_common.py: BUNDLED_ZED_CLI per platform
-out=$(run_forced darwin _zed_common "$ADAPTER_DIR/hooks" "print(mod.BUNDLED_ZED_CLI)")
+out=$(run_forced darwin _zed_common "$ADAPTER_DIR/hooks:$ADAPTER_DIR/../core" "print(mod.BUNDLED_ZED_CLI)")
 [ "$out" = "/Applications/Zed.app/Contents/MacOS/cli" ] && ok "_zed_common: darwin BUNDLED_ZED_CLI" || fail "_zed_common: darwin BUNDLED_ZED_CLI got '$out'"
 
-out=$(run_forced linux _zed_common "$ADAPTER_DIR/hooks" "print(mod.BUNDLED_ZED_CLI)")
+out=$(run_forced linux _zed_common "$ADAPTER_DIR/hooks:$ADAPTER_DIR/../core" "print(mod.BUNDLED_ZED_CLI)")
 expected="$HOME/.local/bin/zed"
 [ "$out" = "$expected" ] && ok "_zed_common: linux BUNDLED_ZED_CLI" || fail "_zed_common: linux BUNDLED_ZED_CLI got '$out' want '$expected'"
 
@@ -92,6 +95,7 @@ import sys
 sys.platform = 'darwin'
 sys.argv = ['tmux_diff_injector.py', '$target', 'ignored', 'testpane', 'gen1']
 sys.path.insert(0, '$ADAPTER_DIR/hooks')
+sys.path.insert(0, '$ADAPTER_DIR/../core')
 exec(open('$ADAPTER_DIR/hooks/tmux_diff_injector.py').read())
 " >/dev/null 2>&1 || true
 out=$(cat "$log" 2>/dev/null || echo "")
@@ -108,6 +112,7 @@ import sys
 sys.platform = 'linux'
 sys.argv = ['tmux_diff_injector.py', '$target', 'ignored', 'testpane', 'gen1']
 sys.path.insert(0, '$ADAPTER_DIR/hooks')
+sys.path.insert(0, '$ADAPTER_DIR/../core')
 exec(open('$ADAPTER_DIR/hooks/tmux_diff_injector.py').read())
 " >/dev/null 2>&1 || true
 out=$(cat "$log" 2>/dev/null || echo "")

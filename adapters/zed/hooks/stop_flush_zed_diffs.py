@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """Stop hook: flush the turn's edits into ONE Zed multi-diff.
 
-The pre-hook accumulates a per-(session, file) marker for every file edited during
-the turn instead of opening a diff per edit. Opening a diff fronts Zed (the 1.9.0
-CLI always activates on open, with no open-without-activate flag), so per-edit
-opens steal focus on every write — jarring on a single monitor and, worse, able to
-misroute keystrokes into Zed while the user types elsewhere. Batching to the Stop
-boundary fronts Zed once per turn, when CC has just finished and the user is not
-mid-typing-elsewhere.
+The pre-hook accumulates a turn manifest instead of opening a diff per edit. Opening a
+diff fronts Zed (the 1.9.0 CLI always activates on open, with no open-without-activate
+flag), so per-edit opens steal focus on every write — jarring on a single monitor and,
+worse, able to misroute keystrokes into Zed while the user types elsewhere. Batching to
+the Stop boundary fronts Zed once per turn, when CC has just finished and the user is
+not mid-typing-elsewhere.
 """
-import glob
 import json
 import os
 import subprocess
 import sys
 import time
 
-from _zed_common import gen_path, pointer_path, resolve_zed, seen_glob
+import manifest
+from _zed_common import gen_path, resolve_zed
+
+NAMESPACE = "cc_zed"
 
 
 def main():
@@ -28,33 +29,7 @@ def main():
         sys.exit(0)
 
     session_id = event.get("session_id", "")
-    markers = glob.glob(seen_glob(session_id))
-    if not markers:
-        sys.exit(0)
-
-    # Build the manifest: one (base, file) pair per file edited this turn. Read the
-    # file path from the marker's contents; the base is the turn-start snapshot the
-    # pre-hook pointed at (kept from the FIRST edit this turn), or /dev/null for a
-    # file with no snapshot (a new file — renders as all-additions). Sort for a
-    # stable pane order. Clear markers as we go so the next turn starts clean even
-    # if the diff open below fails.
-    edits = []  # list of (file_path, base)
-    for marker in sorted(markers):
-        try:
-            file_path = open(marker).read().strip()
-        except OSError:
-            file_path = ""
-        try:
-            os.remove(marker)
-        except OSError:
-            pass
-        if not file_path:
-            continue
-        pointer = pointer_path(file_path)
-        snapshot = open(pointer).read().strip() if os.path.isfile(pointer) else ""
-        base = snapshot if snapshot and os.path.isfile(snapshot) else os.devnull
-        edits.append((file_path, base))
-
+    edits = manifest.close_turn(NAMESPACE, session_id)
     if not edits:
         sys.exit(0)
 
@@ -87,10 +62,12 @@ def main():
     # multi-diff pane — so a large turn opens one pane, not one window per file, and
     # Zed fronts exactly once. Every operand is a `--diff` pair (never a bare path),
     # so no path attaches to the workspace as a loose worktree. New files diff
-    # against /dev/null. Verified against Zed 1.9.0.
+    # against /dev/null — the manifest's "new" sentinel translates to the real
+    # /dev/null path only here, at the Zed-CLI boundary. Verified against Zed 1.9.0.
     cmd = [zed, "-a"]
     for file_path, base in edits:
-        cmd += ["--diff", base, file_path]
+        zed_base = os.devnull if base == manifest.NEW else base
+        cmd += ["--diff", zed_base, file_path]
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # tmux edit-injector: when CC runs in a tmux pane, watch each file for a manual
