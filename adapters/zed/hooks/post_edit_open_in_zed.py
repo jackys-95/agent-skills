@@ -8,7 +8,7 @@ queues each edited file in the shared manifest; the Stop hook flushes the whole 
 into one multi-diff. This hook just confirms the queue entry — kept as its own call
 (rather than folded into the pre-hook) since it fires after the tool completes, not
 before, which matters if a future edge case needs "touched" confirmed independently of
-"base captured." See TASK-0022 designs/core-api-plan.md.
+"base captured."
 """
 import json
 import os

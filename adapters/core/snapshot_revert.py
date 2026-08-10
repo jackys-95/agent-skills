@@ -4,7 +4,7 @@
 Self-contained (stdlib only, no sibling-module imports) so it's independently testable
 and deployable. manifest.py builds the turn-scoped manifest on top of this. Deployed as
 a flat file beside its callers (hook scripts import it by name), so keep it
-dependency-free. See EPIC-0003 designs/adapter-taxonomy.md §10 for the full contract.
+dependency-free (see #51 for the full contract).
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def pointer_path(namespace, path):
     turn's UserPromptSubmit — the pointer must outlive both. This is the same
     process-wide, indefinitely-persisting-until-overwritten lifetime the pre-extraction
     `pointer_path` had; not scoping it to the turn manifest is deliberate, not an
-    oversight — see TASK-0022 designs/core-api-plan.md."""
+    oversight."""
     return f"/tmp/{namespace}_ptr_{path_hash(path)}"
 
 

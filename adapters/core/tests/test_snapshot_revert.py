@@ -104,8 +104,7 @@ class RevertTests(unittest.TestCase):
         """revert() reads only the pointer file, never the turn manifest — the
         load-bearing property that keeps revert working after Stop has already
         deleted the manifest. The diff a user reverts from opens only after Stop
-        runs, and the revert reply is itself a new turn's UserPromptSubmit — see
-        TASK-0022 designs/core-api-plan.md."""
+        runs, and the revert reply is itself a new turn's UserPromptSubmit."""
         d = Path(tempfile.mkdtemp())
         f = d / "b.txt"
         f.write_text("turn-start content")
