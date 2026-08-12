@@ -101,6 +101,28 @@ def install_canonical_skills(
         )
 
 
+def install_memory_bank_adapter(
+    repo_root: Path,
+    target_root: Path,
+    dry_run: bool,
+) -> None:
+    """Compose adapter reindex marking over the installed canonical script."""
+    source_scripts = repo_root / "skills" / "task-memory-bank" / "scripts"
+    adapter_core = repo_root / "adapters" / "core"
+    target_scripts = target_root / "task-memory-bank" / "scripts"
+    copies = (
+        (source_scripts / "memory_bank.py", target_scripts / "_memory_bank.py"),
+        (adapter_core / "memory_bank_adapter.py", target_scripts / "memory_bank.py"),
+        (adapter_core / "reindex_state.py", target_scripts / "reindex_state.py"),
+    )
+    for source, target in copies:
+        print(f"Install memory-bank adapter runtime: {source} -> {target}")
+        if dry_run:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+
 def install_plain_skills(
     repo_root: Path,
     manifest: dict,

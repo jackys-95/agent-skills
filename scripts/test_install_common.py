@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from install_common import (  # noqa: E402
     copy_skill,
     install_canonical_skills,
+    install_memory_bank_adapter,
     install_plain_skills,
     install_qmd_skill,
     install_tagged_blocks,
@@ -156,6 +157,51 @@ class TestInstallCommon(unittest.TestCase):
         self.assertTrue((target / "query-kb" / "SKILL.md").exists())
         self.assertIn("Read task-memory-bank/SKILL.md", wrapper)
         self.assertIn("Resume now.", wrapper)
+
+    def test_install_memory_bank_adapter_composes_public_entrypoint(self) -> None:
+        repo = self.tmp / "repo"
+        canonical = repo / "skills" / "task-memory-bank" / "scripts" / "memory_bank.py"
+        facade = repo / "adapters" / "core" / "memory_bank_adapter.py"
+        state = repo / "adapters" / "core" / "reindex_state.py"
+        canonical.parent.mkdir(parents=True)
+        facade.parent.mkdir(parents=True)
+        canonical.write_text("# canonical\n", encoding="utf-8")
+        facade.write_text("# facade\n", encoding="utf-8")
+        state.write_text("# state\n", encoding="utf-8")
+        target = self.tmp / "custom-skills"
+
+        quiet_call(
+            install_memory_bank_adapter,
+            repo,
+            target,
+            dry_run=False,
+        )
+
+        scripts = target / "task-memory-bank" / "scripts"
+        self.assertEqual(
+            (scripts / "_memory_bank.py").read_text(encoding="utf-8"),
+            "# canonical\n",
+        )
+        self.assertEqual(
+            (scripts / "memory_bank.py").read_text(encoding="utf-8"),
+            "# facade\n",
+        )
+        self.assertEqual(
+            (scripts / "reindex_state.py").read_text(encoding="utf-8"),
+            "# state\n",
+        )
+
+    def test_install_memory_bank_adapter_dry_run_writes_nothing(self) -> None:
+        target = self.tmp / "custom-skills"
+
+        quiet_call(
+            install_memory_bank_adapter,
+            self.tmp / "repo",
+            target,
+            dry_run=True,
+        )
+
+        self.assertFalse(target.exists())
 
     def test_install_tagged_blocks_creates_replaces_and_preserves_content(self) -> None:
         source = self.tmp / "source.md"

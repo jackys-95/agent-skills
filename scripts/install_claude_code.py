@@ -12,6 +12,7 @@ from pathlib import Path
 from hook_install import install_hook, load_settings, save_settings
 from install_common import (
     install_canonical_skills,
+    install_memory_bank_adapter,
     install_plain_skills,
     install_qmd_skill,
     load_manifest,
@@ -110,6 +111,7 @@ def main() -> int:
         target_root,
         args.dry_run,
     )
+    install_memory_bank_adapter(REPO_ROOT, target_root, args.dry_run)
     install_plain_skills(REPO_ROOT, manifest, target_root, args.dry_run)
     install_qmd_skill(args.dry_run)
     install_reindex_hooks(target_root, args.dry_run)

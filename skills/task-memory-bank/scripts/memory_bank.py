@@ -7,11 +7,9 @@ import argparse
 import datetime as dt
 import difflib
 import json
-import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import collections_yaml
@@ -70,30 +68,6 @@ def project_dir(root: Path, project: str) -> Path:
 
 def collection_name(project: str) -> str:
     return "mb-" + project.replace("_", "-")
-
-
-def mark_collection_dirty(collection: str) -> None:
-    """Signal adapter lifecycle hooks without reindexing provisional writes."""
-    marker_dir = Path(
-        os.environ.get("TMB_REINDEX_MARKER_DIR", tempfile.gettempdir())
-    ).expanduser()
-    safe_name = "".join(
-        c if c.isalnum() or c in "-_" else "_" for c in collection
-    )
-    marker_dir.mkdir(parents=True, exist_ok=True)
-    (marker_dir / f"tmb_qmd_dirty_{safe_name}").write_text(
-        collection,
-        encoding="utf-8",
-    )
-
-
-def mark_memory_path_dirty(path: Path) -> None:
-    """Infer a project collection from a canonical projects/<name>/ path."""
-    parts = path.resolve().parts
-    for index in range(len(parts) - 1, -1, -1):
-        if parts[index] == "projects" and index + 1 < len(parts):
-            mark_collection_dirty(collection_name(parts[index + 1]))
-            return
 
 
 def current_git_root() -> str:
@@ -319,7 +293,6 @@ vec: what context is needed to resume current work in {title}
     # template. This becomes the qmd context; editable later via `qmd context add`.
     summary = description or f"Task memory bank for the {title} project."
     register_qmd_collection(pdir, cname, summary)
-    mark_collection_dirty(cname)
 
     print(f"Initialized project memory: {pdir}")
     print(f"Registered qmd collection {cname} (path {pdir}).")
@@ -530,7 +503,6 @@ hyde: The active.md for {args.title} describes the current state, next actions, 
         if collections_yaml.append_repo(collections, cname, repo):
             print(f"Recorded repo association: {repo} -> {cname}")
 
-    mark_collection_dirty(collection_name(project))
     print(f"Created {work_type}: {wdir}")
 
 
@@ -541,7 +513,6 @@ def regen_index_cmd(args: argparse.Namespace) -> None:
     if not pdir.exists():
         raise SystemExit(f"Project memory does not exist: {pdir}")
     index = regen_work_index(pdir)
-    mark_collection_dirty(collection_name(project))
     print(f"Regenerated {index}")
 
 
@@ -569,7 +540,6 @@ active
 {today()}
 """,
     )
-    mark_memory_path_dirty(adir)
     print(f"Created attempt: {adir}")
 
 
@@ -597,7 +567,6 @@ def append_history(args: argparse.Namespace) -> None:
 """,
         encoding="utf-8",
     )
-    mark_memory_path_dirty(path)
     print(f"Appended history: {path}")
 
 
@@ -722,7 +691,7 @@ def doctor(args: argparse.Namespace) -> None:
     print("Memory bank looks structurally healthy.")
 
 
-def migrate_collections(args: argparse.Namespace) -> None:
+def migrate_collections(args: argparse.Namespace) -> bool:
     root = expand(args.root)
     path = root / ".memory-bank" / "collections.yaml"
     if not path.exists():
@@ -769,6 +738,7 @@ def migrate_collections(args: argparse.Namespace) -> None:
         print("collections.yaml already migrated and no stale manifests; no changes.")
     elif args.check:
         print("[--check] No changes written.")
+    return changed and not args.check
 
 
 def build_parser() -> argparse.ArgumentParser:

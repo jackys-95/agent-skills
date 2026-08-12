@@ -13,6 +13,7 @@ from pathlib import Path
 from codex_hook_install import install_hook, load_config, save_config
 from install_common import (
     install_canonical_skills,
+    install_memory_bank_adapter,
     install_plain_skills,
     install_qmd_skill,
     install_tagged_blocks,
@@ -173,6 +174,8 @@ def main() -> int:
         args.dry_run,
         wrapper_label="wrapper skill",
     )
+    if not args.skip_hooks:
+        install_memory_bank_adapter(REPO_ROOT, target_root, args.dry_run)
     install_plain_skills(REPO_ROOT, manifest, target_root, args.dry_run)
     permission_helpers = install_permission_helpers(target_root, args.dry_run)
     if not args.skip_qmd:

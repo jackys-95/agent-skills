@@ -105,6 +105,15 @@ class TestInstallCodex(unittest.TestCase):
         self.assertTrue((runtime / "post_apply_patch_mark_dirty.py").exists())
         self.assertTrue((runtime / "reindex_dirty_collections.py").exists())
         self.assertTrue((runtime / "reindex_state.py").exists())
+        scripts = target / "task-memory-bank" / "scripts"
+        self.assertTrue((scripts / "_memory_bank.py").exists())
+        self.assertIn(
+            "Adapter-owned facade",
+            (scripts / "memory_bank.py").read_text(encoding="utf-8"),
+        )
+        self.assertTrue((scripts / "reindex_state.py").exists())
+        flush_command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+        self.assertIn(str(scripts / "memory_bank.py"), flush_command)
 
     def test_main_skip_agents_leaves_agents_target_untouched(self) -> None:
         target = self.tmp / "skills"
@@ -171,6 +180,28 @@ class TestInstallCodex(unittest.TestCase):
                 self.assertEqual(quiet_call(install_codex.main), 0)
 
         install_qmd.assert_not_called()
+
+    def test_skip_hooks_keeps_canonical_entrypoint_unwrapped(self) -> None:
+        target = self.tmp / "skills"
+        argv = [
+            "install_codex.py",
+            "--skip-qmd",
+            "--skip-agents",
+            "--skip-hooks",
+            "--target",
+            str(target),
+        ]
+
+        with mock.patch.object(sys, "argv", argv):
+            self.assertEqual(quiet_call(install_codex.main), 0)
+
+        scripts = target / "task-memory-bank" / "scripts"
+        self.assertIn(
+            "Scaffold and maintain",
+            (scripts / "memory_bank.py").read_text(encoding="utf-8"),
+        )
+        self.assertFalse((scripts / "_memory_bank.py").exists())
+        self.assertFalse((scripts / "reindex_state.py").exists())
 
     def test_installer_does_not_modify_codex_config(self) -> None:
         target = self.tmp / "skills"
