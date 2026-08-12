@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import sys
 import tempfile
@@ -54,6 +55,92 @@ class TestInstallClaudeCode(unittest.TestCase):
 
         load_settings.assert_not_called()
         save_settings.assert_not_called()
+
+    def test_install_reindex_hooks_migrates_legacy_flush_commands(self) -> None:
+        target = self.tmp / "skills"
+        hooks_dir = self.tmp / "hooks"
+        legacy_command = f"python3 {hooks_dir / 'reindex_dirty_collections.py'}"
+        current_command = (
+            f"{legacy_command} --memory-bank "
+            f"{target / 'task-memory-bank' / 'scripts' / 'memory_bank.py'}"
+        )
+        unrelated = {
+            "type": "command",
+            "command": "python3 /custom/prompt_hook.py",
+            "timeout": 7,
+        }
+        settings = {
+            "custom": {"preserve": True},
+            "hooks": {
+                event: [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": legacy_command,
+                                "timeout": 3,
+                            },
+                            copy.deepcopy(unrelated),
+                        ]
+                    }
+                ]
+                for event in ("UserPromptSubmit", "SessionEnd", "SessionStart")
+            },
+        }
+        settings["hooks"]["SessionEnd"][0]["hooks"].insert(
+            1,
+            {
+                "type": "command",
+                "command": current_command,
+                "timeout": 5,
+            },
+        )
+        saved = []
+
+        with mock.patch.object(
+            install_claude_code,
+            "CLAUDE_HOOKS_DIR",
+            hooks_dir,
+        ):
+            with mock.patch.object(
+                install_claude_code,
+                "load_settings",
+                return_value=settings,
+            ):
+                with mock.patch.object(
+                    install_claude_code,
+                    "save_settings",
+                    side_effect=lambda data: saved.append(copy.deepcopy(data)),
+                ):
+                    quiet_call(
+                        install_claude_code.install_reindex_hooks,
+                        target,
+                        dry_run=False,
+                    )
+                    quiet_call(
+                        install_claude_code.install_reindex_hooks,
+                        target,
+                        dry_run=False,
+                    )
+
+        data = saved[-1]
+        self.assertEqual(saved[-2], saved[-1])
+        self.assertEqual(data["custom"], {"preserve": True})
+        for event in ("UserPromptSubmit", "SessionEnd", "SessionStart"):
+            commands = data["hooks"][event][0]["hooks"]
+            self.assertEqual(
+                sum(hook.get("command") == current_command for hook in commands),
+                1,
+            )
+            self.assertFalse(
+                any(hook.get("command") == legacy_command for hook in commands)
+            )
+            self.assertIn(unrelated, commands)
+            migrated = next(
+                hook for hook in commands if hook.get("command") == current_command
+            )
+            expected_timeout = 5 if event == "SessionEnd" else 3
+            self.assertEqual(migrated["timeout"], expected_timeout)
 
     def test_main_has_no_zed_guidance_wiring(self) -> None:
         target = self.tmp / "skills"

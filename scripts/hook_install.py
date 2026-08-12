@@ -29,23 +29,53 @@ def save_settings(data: dict, settings_path: pathlib.Path = CLAUDE_SETTINGS) -> 
     settings_path.write_text(json.dumps(data, indent=2) + "\n")
 
 
-def install_hook(settings: dict, event: str, dest, matcher, args=()) -> None:
+def install_hook(
+    settings: dict,
+    event: str,
+    dest,
+    matcher,
+    args=(),
+    legacy_args=(),
+) -> None:
     """Register `python3 <dest>` under `event` in a settings dict (idempotent).
 
     Turn-boundary events (UserPromptSubmit, Stop, SessionStart, SessionEnd) take no
     tool matcher — pass matcher=None; file-tool events (Pre/PostToolUse) pass e.g.
     "Edit|Write". Reuses an existing entry with the same matcher (None matches the
-    matcher-less entry) so re-running never duplicates. Mutates `settings` in place;
-    the caller persists it with save_settings.
+    matcher-less entry) so re-running never duplicates. `legacy_args` identifies
+    prior managed command variants to replace without disturbing unrelated hooks.
+    Mutates `settings` in place; the caller persists it with save_settings.
     """
     entries = settings.setdefault("hooks", {}).setdefault(event, [])
     cmd = shlex.join(["python3", str(dest), *[str(arg) for arg in args]])
+    legacy_cmds = {
+        shlex.join(["python3", str(dest), *[str(arg) for arg in old_args]])
+        for old_args in legacy_args
+    }
+    legacy_cmds.discard(cmd)
 
     for entry in entries:
         if entry.get("matcher") == matcher:
             cmds = entry.setdefault("hooks", [])
-            if any(h.get("command") == cmd for h in cmds):
+            current = next((hook for hook in cmds if hook.get("command") == cmd), None)
+            legacy = [hook for hook in cmds if hook.get("command") in legacy_cmds]
+            if current is not None:
+                if legacy:
+                    legacy_ids = {id(hook) for hook in legacy}
+                    entry["hooks"] = [
+                        hook for hook in cmds if id(hook) not in legacy_ids
+                    ]
+                    print(f"Migrated {event} hook.")
+                    return
                 print(f"{event} hook already installed.")
+                return
+            if legacy:
+                legacy[0]["command"] = cmd
+                duplicate_ids = {id(hook) for hook in legacy[1:]}
+                entry["hooks"] = [
+                    hook for hook in cmds if id(hook) not in duplicate_ids
+                ]
+                print(f"Migrated {event} hook.")
                 return
             cmds.append({"type": "command", "command": cmd})
             print(f"Added {event} hook to existing matcher.")
