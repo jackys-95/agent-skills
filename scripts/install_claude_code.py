@@ -68,7 +68,15 @@ def install_reindex_hooks(target_root: Path, dry_run: bool) -> None:
                 "--memory-bank",
                 target_root / "task-memory-bank" / "scripts" / "memory_bank.py",
             )
-        install_hook(settings, hook["event"], dest, hook["matcher"], args)
+        legacy_args = ((),) if args else ()
+        install_hook(
+            settings,
+            hook["event"],
+            dest,
+            hook["matcher"],
+            args,
+            legacy_args,
+        )
     save_settings(settings)
 
 
