@@ -64,9 +64,29 @@ class TestInstallCodex(unittest.TestCase):
         self.assertIn("task-memory-bank/SKILL.md", wrapper)
         self.assertIn("memory.resume", wrapper)
 
+        helper_name = "codex_memory_permissions.py"
+        init_helper = target / "memory-init-project" / "scripts" / helper_name
+        doctor_helper = target / "memory-doctor" / "scripts" / helper_name
+        self.assertTrue(init_helper.exists())
+        self.assertTrue(doctor_helper.exists())
+        self.assertFalse((target / "memory-resume" / "scripts" / helper_name).exists())
+
+        init_wrapper = (target / "memory-init-project" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        doctor_wrapper = (target / "memory-doctor" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("codex_memory_permissions.py check", init_wrapper)
+        self.assertIn("explicit `backfill`", init_wrapper)
+        self.assertIn("codex_memory_permissions.py check", doctor_wrapper)
+
         agents_text = agents.read_text(encoding="utf-8")
         self.assertIn("<!-- codex-agent-skills -->", agents_text)
         self.assertIn("$memory-resume", agents_text)
+        self.assertNotIn("<!-- zed-codex-adapter -->", agents_text)
+        self.assertNotIn("<!-- phase-turns -->", agents_text)
+        self.assertNotIn("codex_memory_permissions.py", agents_text)
 
     def test_main_skip_agents_leaves_agents_target_untouched(self) -> None:
         target = self.tmp / "skills"
@@ -123,6 +143,31 @@ class TestInstallCodex(unittest.TestCase):
                 self.assertEqual(quiet_call(install_codex.main), 0)
 
         install_qmd.assert_not_called()
+
+    def test_installer_does_not_modify_codex_config(self) -> None:
+        target = self.tmp / "skills"
+        agents = self.tmp / "AGENTS.md"
+        config = self.tmp / "config.toml"
+        config.write_text('sandbox_mode = "read-only"\n', encoding="utf-8")
+        argv = [
+            "install_codex.py",
+            "--skip-qmd",
+            "--target",
+            str(target),
+            "--agents-target",
+            str(agents),
+        ]
+
+        with mock.patch.object(sys, "argv", argv):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(install_codex.main(), 0)
+
+        self.assertEqual(
+            config.read_text(encoding="utf-8"), 'sandbox_mode = "read-only"\n'
+        )
+        self.assertIn("run the installed helper", output.getvalue())
+        self.assertIn("once during setup", output.getvalue())
 
     def test_install_agents_md_is_idempotent_and_preserves_user_content(self) -> None:
         source = install_codex.ADAPTER_DIR / "AGENTS.md"

@@ -1,3 +1,20 @@
+<!-- zed-launch-context -->
+## How CC Is Launched in Zed
+
+CC can run in Zed in two ways. The hooks (snapshot, diff, revert) work identically in both.
+
+**Terminal Thread - recommended for Claude Pro/Max subscribers:**
+Agent panel -> **+** -> **Terminal** -> type `claude`.
+Uses your Claude subscription directly. `CC_ZED_HOOK=1` is already set via `terminal.env` in
+`~/.config/zed/settings.json` - no extra config needed.
+
+**ACP external agent:**
+Configured via `agent_servers."claude-acp"` in `~/.config/zed/settings.json`.
+Starting 2026-06-15, ACP usage draws from a separate credit pool billed at API rates - not from
+Claude Pro/Max subscriptions.
+<!-- zed-launch-context -->
+
+<!-- zed-adapter -->
 # Zed Adapter Behavior
 
 You are running inside Zed as an external agent. Diffs for the files you edit are
@@ -31,3 +48,4 @@ turn-start state is "did not exist", so reverting it **deletes** the file.
 - Do not narrate or summarize the diff content — the user sees it in Zed
 - Do not re-read a file after writing unless the user reverts it
 - The user approves by silence — do not ask for confirmation if they haven't replied
+<!-- zed-adapter -->

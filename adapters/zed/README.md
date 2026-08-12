@@ -27,7 +27,7 @@ Then install the Zed adapter:
 python3 adapters/zed/install.py
 ```
 
-This copies hook scripts into `~/.claude/hooks/`, registers them in `~/.claude/settings.json` (PreToolUse/PostToolUse on `Edit|Write`, plus turn-boundary UserPromptSubmit/Stop hooks), sets `defaultMode: acceptEdits`, and appends the adapter instructions to `~/.claude/CLAUDE.md`.
+This copies hook scripts into `~/.claude/hooks/`, registers them in `~/.claude/settings.json` (PreToolUse/PostToolUse on `Edit|Write`, plus turn-boundary UserPromptSubmit/Stop hooks), sets `defaultMode: acceptEdits`, and upserts Zed launch, review, and phase-turn guidance into `~/.claude/CLAUDE.md`.
 
 ## Install ZedCodex
 
@@ -39,9 +39,20 @@ python3 adapters/zed/install_codex.py
 ```
 
 The second command copies runtime files to `~/.codex/hooks/zedcodex/`, merges
-four command hooks into `~/.codex/hooks.json`, and installs tagged review
-guidance in `~/.codex/AGENTS.md`. It does not modify
+four command hooks into `~/.codex/hooks.json`, and installs tagged review and
+phase-turn guidance in `~/.codex/AGENTS.md`. It does not modify
 `~/.codex/config.toml`.
+
+External memory-bank and knowledge paths still require Codex writable-root
+setup. Use the checker installed by `scripts/install_codex.py`; prefer
+launch-scoped `--add-dir` grants, or explicitly backfill persistent config and
+restart before writing. The permission helper changes settings only. Content
+writes must still use `apply_patch` so ZedCodex can collect their diff and
+revert snapshots.
+
+The base Claude Code and Codex installers do not install this guidance. Phase
+semantics remain in the canonical task-memory-bank workflow; this adapter only
+binds its checkpoints to Zed's turn-scoped review lifecycle.
 
 Set `CODEX_ZED_HOOK=1` in Zed's terminal environment. Start a new Codex CLI
 session, run `/hooks`, and review and trust the four definitions. Hooks are

@@ -17,9 +17,11 @@ import sys
 # by path so this installer stays self-contained without a package layout.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
 from hook_install import install_hook, load_settings, save_settings  # noqa: E402
+from install_common import install_tagged_blocks  # noqa: E402
 
 HOOKS_DIR = pathlib.Path(__file__).parent / "hooks"
 ADAPTER_CLAUDE_MD = pathlib.Path(__file__).parent / "CLAUDE.md"
+PHASE_TURNS_MD = pathlib.Path(__file__).parent / "phase-turns.md"
 
 # Harness-agnostic manifest/snapshot/revert core (adapters/core/, sibling of
 # adapters/zed/) — deployed flat alongside the hooks, same as _zed_common.py, so
@@ -45,8 +47,6 @@ WATCHER_BIN = {"darwin": "fswatch", "linux": "inotifywait"}.get(sys.platform)
 CLAUDE_SETTINGS = pathlib.Path.home() / ".claude" / "settings.json"
 CLAUDE_HOOKS_DIR = pathlib.Path.home() / ".claude" / "hooks"
 CLAUDE_MD = pathlib.Path.home() / ".claude" / "CLAUDE.md"
-
-CLAUDE_MD_MARKER = "<!-- zed-adapter -->"
 
 # Zed terminal environment (user must set manually)
 ZED_SETTINGS = pathlib.Path.home() / ".config" / "zed" / "settings.json"
@@ -99,23 +99,8 @@ SCRIPTS = [
 
 
 def install_claude_md():
-    content = ADAPTER_CLAUDE_MD.read_text()
-    block = f"{CLAUDE_MD_MARKER}\n{content.rstrip()}\n{CLAUDE_MD_MARKER}"
-    existing = CLAUDE_MD.read_text() if CLAUDE_MD.exists() else ""
-    if CLAUDE_MD_MARKER in existing:
-        import re
-        updated = re.sub(
-            rf"{re.escape(CLAUDE_MD_MARKER)}.*?{re.escape(CLAUDE_MD_MARKER)}",
-            block,
-            existing,
-            flags=re.DOTALL,
-        )
-        CLAUDE_MD.write_text(updated)
-        print(f"Updated Zed adapter section in {CLAUDE_MD}")
-    else:
-        sep = "\n\n" if existing.strip() else ""
-        CLAUDE_MD.write_text(existing + sep + block + "\n")
-        print(f"Appended Zed adapter section to {CLAUDE_MD}")
+    install_tagged_blocks(ADAPTER_CLAUDE_MD, CLAUDE_MD, False, "Zed CLAUDE.md")
+    install_tagged_blocks(PHASE_TURNS_MD, CLAUDE_MD, False, "Zed phase-turn")
 
 
 def install_accept_edits(claude_settings):

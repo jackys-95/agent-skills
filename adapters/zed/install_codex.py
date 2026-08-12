@@ -15,7 +15,8 @@ import sys
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 HOOKS_SOURCE = pathlib.Path(__file__).parent / "hooks"
 CORE_SOURCE = pathlib.Path(__file__).parent.parent / "core"
-CODEX_AGENTS_SOURCE = pathlib.Path(__file__).parent.parent / "codex" / "AGENTS.md"
+CODEX_AGENTS_SOURCE = pathlib.Path(__file__).parent / "AGENTS.md"
+PHASE_TURNS_SOURCE = pathlib.Path(__file__).parent / "phase-turns.md"
 
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from install_common import install_tagged_blocks  # noqa: E402
@@ -177,6 +178,13 @@ def main():
             args.dry_run,
             "ZedCodex AGENTS.md",
             tags={"zed-codex-adapter"},
+        )
+        install_tagged_blocks(
+            PHASE_TURNS_SOURCE,
+            agents_target,
+            args.dry_run,
+            "Zed phase-turn AGENTS.md",
+            tags={"phase-turns"},
         )
 
     print(

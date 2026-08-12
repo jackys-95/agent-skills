@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
@@ -20,10 +21,26 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ADAPTER_DIR = REPO_ROOT / "adapters" / "codex"
 DEFAULT_TARGET = Path.home() / ".agents" / "skills"
 DEFAULT_AGENTS_TARGET = Path.home() / ".codex" / "AGENTS.md"
+PERMISSION_HELPER = ADAPTER_DIR / "scripts" / "codex_memory_permissions.py"
+PERMISSION_WRAPPERS = ("memory-init-project", "memory-doctor")
 
 
 def install_agents_md(source: Path, target: Path, dry_run: bool) -> None:
     install_tagged_blocks(source, target, dry_run, "AGENTS.md")
+
+
+def install_permission_helpers(target_root: Path, dry_run: bool) -> list[Path]:
+    targets = [
+        target_root / wrapper / "scripts" / PERMISSION_HELPER.name
+        for wrapper in PERMISSION_WRAPPERS
+    ]
+    for target in targets:
+        print(f"Install Codex permission helper: {PERMISSION_HELPER} -> {target}")
+        if dry_run:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PERMISSION_HELPER, target)
+    return targets
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -74,11 +91,20 @@ def main() -> int:
         wrapper_label="wrapper skill",
     )
     install_plain_skills(REPO_ROOT, manifest, target_root, args.dry_run)
+    permission_helpers = install_permission_helpers(target_root, args.dry_run)
     if not args.skip_qmd:
         install_qmd_skill(args.dry_run)
     if not args.skip_agents:
         install_agents_md(ADAPTER_DIR / "AGENTS.md", agents_target, args.dry_run)
 
+    print("Codex permission helpers:")
+    for helper in permission_helpers:
+        print(f"  {helper}")
+    print(
+        "For each external memory or knowledge root, run the installed helper "
+        "with `check` once during setup; use explicit `backfill` only when "
+        "persistent config repair is wanted."
+    )
     print("Codex reindex hooks are not installed yet; use $memory-reindex as needed.")
     return 0
 

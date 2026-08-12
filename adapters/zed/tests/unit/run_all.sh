@@ -44,5 +44,9 @@ echo "=== ZedCodex hook lifecycle ==="
 python3 "$DIR/test_codex_hooks.py"
 
 echo ""
+echo "=== Zed + Claude Code guidance installer ==="
+python3 "$DIR/test_install_claude_guidance.py"
+
+echo ""
 echo "=== ZedCodex installer ==="
 python3 "$DIR/test_install_codex.py"

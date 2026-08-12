@@ -94,7 +94,7 @@ the turn-start and final states are absent.
 ## Revert guidance
 
 The hook's additional context is not directly shown in the Zed panel.
-`adapters/codex/AGENTS.md` therefore tells Codex to echo each
+`adapters/zed/AGENTS.md` therefore tells Codex to echo each
 `reply 'r <file>' to revert` line as standalone user-visible text.
 
 The installer leaves `additionalContextLimit` unset, using Codex's documented
@@ -123,7 +123,8 @@ The installer:
 
 - copies runtime files to `~/.codex/hooks/zedcodex/`;
 - merges four hook definitions into `~/.codex/hooks.json`;
-- installs the tagged ZedCodex block into `~/.codex/AGENTS.md`;
+- installs the tagged ZedCodex and shared Zed phase-turn blocks into
+  `~/.codex/AGENTS.md`;
 - leaves `~/.codex/config.toml` untouched;
 - tells the user to review the exact definitions with `/hooks`.
 

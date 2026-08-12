@@ -66,10 +66,13 @@ class TestInstallCodex(unittest.TestCase):
     def test_install_is_idempotent_and_preserves_existing_config(self):
         self.run_installer()
         first = self.config.read_text(encoding="utf-8")
+        first_agents = self.agents.read_text(encoding="utf-8")
         self.run_installer()
         second = self.config.read_text(encoding="utf-8")
+        second_agents = self.agents.read_text(encoding="utf-8")
 
         self.assertEqual(first, second)
+        self.assertEqual(first_agents, second_agents)
         data = json.loads(second)
         self.assertEqual(data["custom"], {"preserve": True})
         self.assertEqual(len(data["hooks"]["PreToolUse"]), 2)
@@ -92,6 +95,8 @@ class TestInstallCodex(unittest.TestCase):
         self.assertTrue(all("CODEX_ZED_HOOK=1" not in command for command in commands))
         agents_text = self.agents.read_text()
         self.assertIn("<!-- zed-codex-adapter -->", agents_text)
+        self.assertIn("<!-- phase-turns -->", agents_text)
+        self.assertIn("Phase-Scoped Turns", agents_text)
         self.assertNotIn("<!-- codex-agent-skills -->", agents_text)
 
     def test_dry_run_does_not_write(self):

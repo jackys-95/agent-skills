@@ -14,7 +14,6 @@ from install_common import (
     install_canonical_skills,
     install_plain_skills,
     install_qmd_skill,
-    install_tagged_blocks,
     load_manifest,
 )
 
@@ -36,10 +35,6 @@ REINDEX_HOOKS = [
     {"event": "SessionStart", "matcher": None, "script": "reindex_dirty_collections.py"},
 ]
 REINDEX_SUPPORT = ["_reindex_common.py"]
-
-
-def install_claude_md(source: Path, target: Path, dry_run: bool) -> None:
-    install_tagged_blocks(source, target, dry_run, "CLAUDE.md")
 
 
 def install_reindex_hooks(dry_run: bool) -> None:
@@ -101,11 +96,6 @@ def main() -> int:
     install_plain_skills(REPO_ROOT, manifest, target_root, args.dry_run)
     install_qmd_skill(args.dry_run)
     install_reindex_hooks(args.dry_run)
-    install_claude_md(
-        ADAPTER_DIR / "CLAUDE.md",
-        target_root.parent / "CLAUDE.md",
-        args.dry_run,
-    )
 
     return 0
 

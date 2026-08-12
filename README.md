@@ -93,17 +93,17 @@ editor-side review surface.
 # 1. CC adapter — installs skills, /memory-* wrappers, and reindex hooks
 python3 scripts/install_claude_code.py
 
-# 2. Zed adapter — installs diff view hooks, updates settings and CLAUDE.md
+# 2. Zed adapter - installs diff hooks and Zed-scoped CLAUDE.md guidance
 python3 adapters/zed/install.py
 ```
 
 **ZedCodex** pairs Zed with Codex CLI:
 
 ```bash
-# 1. Codex adapter — installs skills, wrappers, and AGENTS.md guidance
+# 1. Codex adapter - installs skills, wrappers, and harness-only AGENTS.md guidance
 python3 scripts/install_codex.py
 
-# 2. ZedCodex hooks — installs turn-batched diff/revert behavior
+# 2. ZedCodex adapter - installs hooks and Zed-scoped AGENTS.md guidance
 python3 adapters/zed/install_codex.py
 ```
 

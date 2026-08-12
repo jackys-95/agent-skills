@@ -164,8 +164,12 @@ Check:
 - `~/.claude/settings.json` registers `PreToolUse` + `PostToolUse` (matcher `Edit|Write`) and
   `UserPromptSubmit` + `Stop` (no matcher)
 - `"defaultMode": "acceptEdits"` is set
-- `~/.claude/CLAUDE.md` contains the `<!-- zed-adapter -->` block with current content
-- Running `install.py` twice does not duplicate any hook command, the CLAUDE.md block, or corrupt settings
+- `~/.claude/CLAUDE.md` contains current `<!-- zed-launch-context -->`,
+  `<!-- zed-adapter -->`, and `<!-- phase-turns -->` blocks.
+- Running `install.py` twice does not duplicate any hook command or CLAUDE.md
+  block, or corrupt settings.
+- Running only `scripts/install_claude_code.py` does not install any of these
+  Zed-specific blocks.
 
 ### ZedCodex install
 
@@ -181,7 +185,9 @@ Check:
 - `/hooks` shows UserPromptSubmit, PreToolUse `^apply_patch$`, PostToolUse
   `^apply_patch$`, and Stop definitions awaiting review on first install.
 - Trust persists after restart and changes to a hook definition require review.
-- `~/.codex/AGENTS.md` contains one `<!-- zed-codex-adapter -->` block.
+- `~/.codex/AGENTS.md` contains one `<!-- zed-codex-adapter -->` block and one
+  `<!-- phase-turns -->` block.
+- Running only `scripts/install_codex.py` installs neither Zed-specific block.
 
 ### ZedCodex manual review
 
