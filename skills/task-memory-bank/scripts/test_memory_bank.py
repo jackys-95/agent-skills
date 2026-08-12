@@ -13,6 +13,7 @@ wires it in and that init-project registers with qmd and drops the manifest.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import tempfile
 import unittest
@@ -21,6 +22,9 @@ from unittest import mock
 
 import collections_yaml
 import memory_bank as mb
+
+_MARKER_DIR = tempfile.TemporaryDirectory()
+os.environ["TMB_REINDEX_MARKER_DIR"] = _MARKER_DIR.name
 
 
 def _ok(*_args, **_kwargs):
@@ -79,6 +83,26 @@ class QmdCollectionNamesTests(unittest.TestCase):
             self.assertIsNone(mb.qmd_collection_names())
 
 
+class ReindexTests(unittest.TestCase):
+    def test_multiple_collections_share_one_update(self):
+        calls = []
+        args = argparse.Namespace(collection=["one", "two"], root=None)
+        with mock.patch(
+            "subprocess.run",
+            side_effect=lambda cmd, **kwargs: calls.append(cmd) or _ok(),
+        ):
+            mb.reindex(args)
+
+        self.assertEqual(
+            calls,
+            [
+                ["qmd", "update"],
+                ["qmd", "embed", "-c", "one"],
+                ["qmd", "embed", "-c", "two"],
+            ],
+        )
+
+
 class NewWorkRepoAccrualTests(unittest.TestCase):
     def _init_bank(self) -> Path:
         root = Path(tempfile.mkdtemp())
@@ -116,6 +140,12 @@ class NewWorkRepoAccrualTests(unittest.TestCase):
             self._new_work(root, None)
         data = collections_yaml.parse_collections(root / ".memory-bank" / "collections.yaml")
         self.assertEqual(data["mb-demo"]["repos"], [])
+
+    def test_marks_project_dirty_for_deferred_reindex(self):
+        root = self._init_bank()
+        with mock.patch("memory_bank.mark_collection_dirty") as mark:
+            self._new_work(root, "/work/demo-repo")
+        mark.assert_called_once_with("mb-demo")
 
 
 class DoctorDriftTests(unittest.TestCase):
@@ -197,6 +227,16 @@ class InitProjectTests(unittest.TestCase):
         cmds = [c for c in calls if c[:2] in (["qmd", "collection"], ["qmd", "context"])]
         self.assertEqual(cmds[0][:3], ["qmd", "collection", "add"])
         self.assertEqual(cmds[1][:3], ["qmd", "context", "add"])
+
+    def test_marks_registered_collection_dirty(self):
+        root = Path(tempfile.mkdtemp())
+        args = argparse.Namespace(
+            root=str(root), project="demo", repo=None, description=None, domain=None
+        )
+        with mock.patch("subprocess.run", side_effect=_ok), \
+             mock.patch("memory_bank.mark_collection_dirty") as mark:
+            mb.init_project(args)
+        mark.assert_called_once_with("mb-demo")
 
 
 class MigrateCollectionsManifestTests(unittest.TestCase):

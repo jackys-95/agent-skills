@@ -141,8 +141,8 @@ between writes (see the settled-state rule in Core Rules):
 python3 <skill-dir>/scripts/memory_bank.py reindex --collection <name>
 ```
 
-`--collection <name>` scopes the embed to one collection; omit it to fall back
-to git-repo resolution, or run with neither to rebuild all collections. If qmd is unavailable or
+`--collection <name>` scopes the embed to one collection and may be repeated;
+omit it to fall back to git-repo resolution, or run with neither to rebuild all collections. If qmd is unavailable or
 unhealthy, still update markdown files and tell the user reindexing could not be completed.
 
 See [references/qmd.md](references/qmd.md) for collection naming, repo resolution, and reindex routing.

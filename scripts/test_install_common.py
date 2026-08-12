@@ -210,6 +210,28 @@ class TestInstallCommon(unittest.TestCase):
 
         self.assertFalse(target.exists())
 
+    def test_install_tagged_blocks_can_filter_source_tags(self) -> None:
+        source = self.tmp / "source.md"
+        target = self.tmp / "target.md"
+        source.write_text(
+            "<!-- keep -->\nKeep\n<!-- keep -->\n\n"
+            "<!-- skip -->\nSkip\n<!-- skip -->\n",
+            encoding="utf-8",
+        )
+
+        quiet_call(
+            install_tagged_blocks,
+            source,
+            target,
+            dry_run=False,
+            label="TEST",
+            tags={"keep"},
+        )
+
+        text = target.read_text(encoding="utf-8")
+        self.assertIn("Keep", text)
+        self.assertNotIn("Skip", text)
+
     def test_install_qmd_skill_dry_run_does_not_run_commands(self) -> None:
         with mock.patch("install_common.shutil.which", return_value="/usr/bin/qmd"):
             with mock.patch("install_common.subprocess.run") as run:

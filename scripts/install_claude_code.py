@@ -14,7 +14,6 @@ from install_common import (
     install_canonical_skills,
     install_plain_skills,
     install_qmd_skill,
-    install_tagged_blocks,
     load_manifest,
 )
 
@@ -24,25 +23,20 @@ ADAPTER_DIR = REPO_ROOT / "adapters" / "claude-code"
 DEFAULT_TARGET = Path.home() / ".claude" / "skills"
 CLAUDE_HOOKS_DIR = Path.home() / ".claude" / "hooks"
 
-# task-memory-bank reindex hooks. A PostToolUse detector marks a memory-bank/KB
-# collection dirty on Edit|Write; three turn-boundary events flush the reindex once
-# the diff review window has closed. _reindex_common.py is the shared module (copied
-# beside the hooks, not registered). See docs/task-memory-bank-reindex-hooks.md.
+# A Claude-specific detector marks edited paths. Harness-neutral marker and flush
+# logic comes from adapters/core.
 REINDEX_HOOKS_SRC = ADAPTER_DIR / "hooks"
+REINDEX_RUNTIME_SRC = REPO_ROOT / "adapters" / "core"
 REINDEX_HOOKS = [
     {"event": "PostToolUse", "matcher": "Edit|Write", "script": "post_edit_mark_dirty.py"},
     {"event": "UserPromptSubmit", "matcher": None, "script": "reindex_dirty_collections.py"},
     {"event": "SessionEnd", "matcher": None, "script": "reindex_dirty_collections.py"},
     {"event": "SessionStart", "matcher": None, "script": "reindex_dirty_collections.py"},
 ]
-REINDEX_SUPPORT = ["_reindex_common.py"]
+REINDEX_SUPPORT = ["reindex_state.py", "reindex_dirty_collections.py"]
 
 
-def install_claude_md(source: Path, target: Path, dry_run: bool) -> None:
-    install_tagged_blocks(source, target, dry_run, "CLAUDE.md")
-
-
-def install_reindex_hooks(dry_run: bool) -> None:
+def install_reindex_hooks(target_root: Path, dry_run: bool) -> None:
     """Copy the reindex hook scripts to ~/.claude/hooks and register the events.
 
     Independent of the Zed adapter: shares only the neutral hook_install helpers, so
@@ -55,8 +49,12 @@ def install_reindex_hooks(dry_run: bool) -> None:
         return
 
     CLAUDE_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
-    for name in REINDEX_SUPPORT + [h["script"] for h in REINDEX_HOOKS]:
-        src = REINDEX_HOOKS_SRC / name
+    names = list(
+        dict.fromkeys(REINDEX_SUPPORT + [h["script"] for h in REINDEX_HOOKS])
+    )
+    for name in names:
+        src_dir = REINDEX_RUNTIME_SRC if name in REINDEX_SUPPORT else REINDEX_HOOKS_SRC
+        src = src_dir / name
         dest = CLAUDE_HOOKS_DIR / name
         shutil.copy2(src, dest)
         dest.chmod(0o755)
@@ -64,7 +62,13 @@ def install_reindex_hooks(dry_run: bool) -> None:
     settings = load_settings()
     for hook in REINDEX_HOOKS:
         dest = CLAUDE_HOOKS_DIR / hook["script"]
-        install_hook(settings, hook["event"], dest, hook["matcher"])
+        args = ()
+        if hook["script"] == "reindex_dirty_collections.py":
+            args = (
+                "--memory-bank",
+                target_root / "task-memory-bank" / "scripts" / "memory_bank.py",
+            )
+        install_hook(settings, hook["event"], dest, hook["matcher"], args)
     save_settings(settings)
 
 
@@ -100,12 +104,7 @@ def main() -> int:
     )
     install_plain_skills(REPO_ROOT, manifest, target_root, args.dry_run)
     install_qmd_skill(args.dry_run)
-    install_reindex_hooks(args.dry_run)
-    install_claude_md(
-        ADAPTER_DIR / "CLAUDE.md",
-        target_root.parent / "CLAUDE.md",
-        args.dry_run,
-    )
+    install_reindex_hooks(target_root, args.dry_run)
 
     return 0
 
