@@ -82,7 +82,8 @@ Forces `sys.platform` to `darwin`/`linux` before import (or, for the watcher, vi
 ### ZedCodex
 
 `test_codex_patch.py` covers Add, Update, Delete, Move, deduplication,
-absolute/relative paths, spaces, quotes, and non-ASCII path text.
+absolute/relative and parent-traversal paths, column-zero header recognition,
+literal quote/tilde characters, spaces, and non-ASCII path text.
 
 `test_codex_hooks.py` covers:
 
@@ -98,7 +99,8 @@ absolute/relative paths, spaces, quotes, and non-ASCII path text.
 
 `test_install_codex.py` verifies runtime copies, idempotent `hooks.json` merge,
 preservation of unrelated config, selective AGENTS.md block installation, and
-dry-run behavior.
+dry-run behavior. It also verifies migration away from the former
+`additionalContextLimit = 1000` override.
 
 ---
 

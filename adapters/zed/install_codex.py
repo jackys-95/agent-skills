@@ -50,7 +50,6 @@ def hook_specs(install_dir):
             "matcher": "^apply_patch$",
             "command": command("pre_apply_patch_zed_snapshot.py"),
             "statusMessage": "Snapshot files for Zed review",
-            "additionalContextLimit": 1000,
         },
         {
             "event": "PostToolUse",
@@ -106,6 +105,8 @@ def install_hook(config, spec):
         handlers.append(desired)
     else:
         handler.update(desired)
+        if "additionalContextLimit" not in desired:
+            handler.pop("additionalContextLimit", None)
 
 
 def save_config(path, data):

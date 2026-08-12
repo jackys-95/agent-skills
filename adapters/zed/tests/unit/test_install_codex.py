@@ -103,6 +103,31 @@ class TestInstallCodex(unittest.TestCase):
         self.assertFalse(self.agents.exists())
         self.assertIn("Install ZedCodex hook config", result.stdout)
 
+    def test_install_removes_old_additional_context_override(self):
+        self.run_installer()
+        data = json.loads(self.config.read_text(encoding="utf-8"))
+        pre_handler = next(
+            hook
+            for group in data["hooks"]["PreToolUse"]
+            if group.get("matcher") == "^apply_patch$"
+            for hook in group["hooks"]
+            if "zedcodex" in hook["command"]
+        )
+        pre_handler["additionalContextLimit"] = 1000
+        self.config.write_text(json.dumps(data), encoding="utf-8")
+
+        self.run_installer()
+
+        updated = json.loads(self.config.read_text(encoding="utf-8"))
+        pre_handler = next(
+            hook
+            for group in updated["hooks"]["PreToolUse"]
+            if group.get("matcher") == "^apply_patch$"
+            for hook in group["hooks"]
+            if "zedcodex" in hook["command"]
+        )
+        self.assertNotIn("additionalContextLimit", pre_handler)
+
 
 if __name__ == "__main__":
     unittest.main()

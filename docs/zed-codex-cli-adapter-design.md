@@ -68,6 +68,19 @@ The shared implementation remains in `adapters/core/manifest.py` and
 `adapters/zed/hooks/_codex_patch.py` is a pure parser. It returns ordered,
 deduplicated absolute paths for all recognized headers.
 
+The parser follows the observed `apply_patch` grammar rather than shell path
+syntax:
+
+- headers must start at column zero, which avoids mistaking unchanged patch
+  body lines such as ` *** Update File: example` for headers;
+- quote characters and `~` are literal filename text and are not unquoted or
+  expanded;
+- absolute paths and `..` traversal are accepted without a tracked-root check.
+
+The last behavior is intentional for the MVP because Codex may edit explicitly
+granted external writable roots, including memory-bank files. Codex's sandbox
+and approval policy remain the write boundary.
+
 For a move, both paths are seeded:
 
 - old path: existing snapshot, rendered as snapshot versus `/dev/null`;
@@ -83,6 +96,10 @@ the turn-start and final states are absent.
 The hook's additional context is not directly shown in the Zed panel.
 `adapters/codex/AGENTS.md` therefore tells Codex to echo each
 `reply 'r <file>' to revert` line as standalone user-visible text.
+
+The installer leaves `additionalContextLimit` unset, using Codex's documented
+2,500-token default. Larger output spills to disk with a model-visible preview
+and saved-file path instead of being silently discarded.
 
 The command:
 
@@ -126,4 +143,3 @@ adapter would activate in every Codex terminal.
 - Locking concurrent manifest read-modify-write operations.
 - tmux edit injection for Codex.
 - Cross-session isolation for path-keyed revert pointers.
-- Content equality filtering for edits that end with their original bytes.

@@ -148,6 +148,10 @@ documentation-derived.
   `PreToolUse` and `PostToolUse` use nested
   `hookSpecificOutput.additionalContext` for model-visible context; `Stop`
   accepts common structured JSON output and continuation decisions.
+- **Documentation-derived:** `additionalContextLimit` is an approximate token
+  threshold, not a character limit. The default is 2,500 tokens. Oversized
+  context spills to disk and the model receives a head-and-tail preview plus
+  the saved-file path; setting the value to `0` disables spilling.
 
 ### apply_patch payloads
 
@@ -155,7 +159,7 @@ documentation-derived.
 - **Observed:** the full freeform patch is `tool_input.command`.
 - **Observed:** one successful patch mixed Add, Update, Delete, Move, and paths
   containing spaces, single quotes, double quotes, and non-ASCII characters.
-  Header paths were raw text without shell quoting.
+  Header paths were column-zero raw text without shell quoting.
 - **Observed:** Move used `*** Update File: old` followed by
   `*** Move to: new`. An empty move hunk failed validation; a context hunk
   containing the unchanged source line succeeded.

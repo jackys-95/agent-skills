@@ -70,6 +70,33 @@ class TestCodexPatchPaths(unittest.TestCase):
             ],
         )
 
+    def test_preserves_raw_quote_and_tilde_characters(self):
+        cwd = "/tmp/codex-patch-root"
+        command = (
+            "*** Begin Patch\n"
+            '*** Update File: "/tmp/quoted path.txt"\n'
+            "*** Update File: ~/literal-tilde.txt\n"
+            "*** End Patch\n"
+        )
+
+        self.assertEqual(
+            parse_paths(command, cwd),
+            [
+                canonical_path('"/tmp/quoted path.txt"', cwd),
+                canonical_path("~/literal-tilde.txt", cwd),
+            ],
+        )
+
+    def test_requires_headers_at_column_zero(self):
+        command = (
+            "*** Begin Patch\n"
+            " *** Update File: context-line.txt\n"
+            "\t*** Delete File: indented.txt\n"
+            "*** End Patch\n"
+        )
+
+        self.assertEqual(parse_paths(command, "/tmp"), [])
+
     def test_relative_paths_resolve_against_hook_cwd(self):
         with tempfile.TemporaryDirectory() as root:
             cwd = os.path.join(root, "subdir")
@@ -99,6 +126,18 @@ class TestCodexPatchPaths(unittest.TestCase):
                 "/ignored",
             ),
             [canonical_path("/tmp/absolute.txt")],
+        )
+
+    def test_parent_traversal_is_not_restricted_to_hook_cwd(self):
+        cwd = "/tmp/workspace/subdir"
+        self.assertEqual(
+            parse_paths(
+                "*** Begin Patch\n"
+                "*** Update File: ../../outside.txt\n"
+                "*** End Patch\n",
+                cwd,
+            ),
+            [canonical_path("../../outside.txt", cwd)],
         )
 
     def test_canonicalizes_symlinked_parent_directory(self):
