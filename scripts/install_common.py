@@ -134,11 +134,14 @@ def install_tagged_blocks(
     target: Path,
     dry_run: bool,
     label: str,
+    tags=None,
 ) -> None:
     """Upsert tagged markdown blocks from source into target."""
     source_text = source.read_text(encoding="utf-8")
     block_re = re.compile(r"(<!-- (\S+) -->.*?<!-- \2 -->)", re.DOTALL)
     blocks = block_re.findall(source_text)
+    if tags is not None:
+        blocks = [block for block in blocks if block[1] in tags]
     if not blocks:
         return
 

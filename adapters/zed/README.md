@@ -1,6 +1,7 @@
 # Zed Adapter
 
-The Zed-side half of a Zed + agent integration. Install this alongside an agent adapter to get a named pairing like **zed-cc** (Zed + Claude Code).
+The Zed-side half of a Zed + agent integration. It supports **zed-cc**
+(Zed + Claude Code) and **ZedCodex** (Zed + Codex CLI).
 
 Opens a diff view in Zed for the files the agent changed. Diffs are **batched per turn**: instead of one diff popping up on every edit, all the files touched during a turn open together in a single multi-diff when the turn ends. This keeps Zed from stealing focus mid-turn (the Zed CLI always fronts the app when it opens content). The agent continues immediately — review is non-blocking and you can revert via the agent panel if needed.
 
@@ -8,11 +9,11 @@ Opens a diff view in Zed for the files the agent changed. Diffs are **batched pe
 
 - macOS or Linux
 - [Zed](https://zed.dev) with the `zed` CLI in PATH (`zed --version` to verify)
-- A file watcher for edit injection:
+- For tmux edit injection (zed-cc only — see [Edit injection (tmux)](#edit-injection-tmux)), a file watcher:
   - macOS: [fswatch](https://github.com/emcrisostomo/fswatch) (`brew install fswatch`)
   - Linux: inotify-tools (`sudo apt install inotify-tools` or your distro's equivalent)
 
-## Install
+## Install zed-cc
 
 Install the agent adapter first (e.g., the CC adapter for zed-cc):
 
@@ -28,7 +29,29 @@ python3 adapters/zed/install.py
 
 This copies hook scripts into `~/.claude/hooks/`, registers them in `~/.claude/settings.json` (PreToolUse/PostToolUse on `Edit|Write`, plus turn-boundary UserPromptSubmit/Stop hooks), sets `defaultMode: acceptEdits`, and appends the adapter instructions to `~/.claude/CLAUDE.md`.
 
-## Enable inside Zed
+## Install ZedCodex
+
+Install the Codex skill adapter, then the ZedCodex hooks:
+
+```bash
+python3 scripts/install_codex.py
+python3 adapters/zed/install_codex.py
+```
+
+The second command copies runtime files to `~/.codex/hooks/zedcodex/`, merges
+four command hooks into `~/.codex/hooks.json`, and installs tagged review
+guidance in `~/.codex/AGENTS.md`. It does not modify
+`~/.codex/config.toml`.
+
+Set `CODEX_ZED_HOOK=1` in Zed's terminal environment. Start a new Codex CLI
+session, run `/hooks`, and review and trust the four definitions. Hooks are
+hash-trusted, so changed definitions require another review.
+
+ZedCodex currently detects `apply_patch` changes. Prefer `apply_patch` while
+the pairing is active; shell-mediated writes do not receive a diff or revert
+snapshot in this MVP.
+
+## Enable zed-cc inside Zed
 
 The hooks are guarded by `CC_ZED_HOOK=1` so they only fire when CC runs inside Zed.
 
@@ -64,7 +87,7 @@ Diffs are batched per CC turn (one turn = one user prompt) and flushed on the `S
 5. **Turn end** — the `Stop` hook opens ONE `zed -a --diff <base> <file> --diff <base> <file> …` covering every file changed this turn, non-blocking, bringing Zed to the front once. `--diff` given many pairs renders them in a single multi-diff pane. The `-a`/`--add` flag pins the diff to the active workspace, so a diff on a file outside the current project (e.g. a task-memory-bank file, or a cross-package edit in a multi-repo workspace) doesn't swap the window's project. New files (no snapshot) diff against an empty base (`/dev/null`); using `--diff` for every operand keeps each path a diff buffer rather than attaching it to the workspace as a loose worktree.
 6. You review the multi-diff in Zed at your own pace.
 
-If CC is running inside `tmux` (terminal thread → `tmux` → `claude`), the Stop hook also starts a background watcher for each changed file that has a snapshot. When you save your edits in Zed (Cmd+S on macOS, Ctrl+S on Linux), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed.
+**zed-cc only:** if CC is running inside `tmux` (terminal thread → `tmux` → `claude`), the Stop hook also starts a background watcher for each changed file that has a snapshot. When you save your edits in Zed (Cmd+S on macOS, Ctrl+S on Linux), the watcher injects a `[Zed edit]` message with the diff into CC's input — no manual copy-paste needed. ZedCodex does not do this yet; see [Edit injection (tmux)](#edit-injection-tmux).
 
 ## Maintenance: stray memory-bank root in the project panel
 
@@ -83,11 +106,13 @@ The script only removes roots that are memory-bank residue or dead paths (direct
 ## UX
 
 - **Accept** — do nothing, CC has already moved on.
-- **Edit** — make changes in Zed and save (Cmd+S on macOS, Ctrl+S on Linux). If running inside tmux, CC is automatically notified with a diff of your changes.
+- **Edit** — make changes in Zed and save (Cmd+S on macOS, Ctrl+S on Linux). Your version is what stays on disk. Under zed-cc in tmux, CC is automatically notified with a diff of your changes; under ZedCodex the save is **not** echoed back, so tell Codex you edited the file (it is instructed to re-read a file you saved).
 - **Revert one file** — reply `r <file>` in the CC panel. CC reads the snapshot path from that file's `[Zed]` line and writes it back (restoring its turn-start state).
 - **Revert all** — reply `revert all` to roll back every file CC changed this turn.
 
 ## Edit injection (tmux)
+
+**zed-cc only.** ZedCodex does not spawn the watcher: a Cmd+S in a ZedCodex diff keeps your version on disk, but nothing tells Codex about it. Say so in the session and it will re-read the file. Parity is deferred until the injector's false-"user saved" bug is fixed ([#65](https://github.com/jackys-95/agent-skills/issues/65)) — porting it first would duplicate that defect into a second adapter.
 
 Run CC inside tmux for automatic edit notification:
 

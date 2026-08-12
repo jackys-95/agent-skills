@@ -34,3 +34,15 @@ python3 "$DIR/test_prune_stale_roots.py"
 echo ""
 echo "=== platform paths (darwin/linux) ==="
 bash "$DIR/test_platform_paths.sh"
+
+echo ""
+echo "=== ZedCodex apply_patch parser ==="
+python3 "$DIR/test_codex_patch.py"
+
+echo ""
+echo "=== ZedCodex hook lifecycle ==="
+python3 "$DIR/test_codex_hooks.py"
+
+echo ""
+echo "=== ZedCodex installer ==="
+python3 "$DIR/test_install_codex.py"

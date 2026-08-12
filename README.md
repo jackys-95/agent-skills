@@ -84,7 +84,8 @@ bun install -g @tobilu/qmd   # or: npm install -g @tobilu/qmd
 
 ## Zed Integrations
 
-You can use these agent skills with parallel agent harnesses of your choice (e.g., Claude Code, Codex) with Zed as the "meta-harness". Currently these agent skills currently supports Zed and Claude Code (CC)
+You can use these agent skills with Claude Code or Codex while Zed provides the
+editor-side review surface.
 
 **zed-cc** is a Zed + CC pairing. It requires two adapters: the CC adapter (skills and wrappers) and the Zed adapter (diff view hooks).
 
@@ -96,7 +97,18 @@ python3 scripts/install_claude_code.py
 python3 adapters/zed/install.py
 ```
 
-See [adapters/zed/README.md](adapters/zed/README.md) for how to enable the hooks inside Zed (terminal thread or ACP).
+**ZedCodex** pairs Zed with Codex CLI:
+
+```bash
+# 1. Codex adapter — installs skills, wrappers, and AGENTS.md guidance
+python3 scripts/install_codex.py
+
+# 2. ZedCodex hooks — installs turn-batched diff/revert behavior
+python3 adapters/zed/install_codex.py
+```
+
+See [adapters/zed/README.md](adapters/zed/README.md) for activation and hook
+trust steps.
 
 ## Notes
 
