@@ -3,7 +3,7 @@
 
 When `CODEX_ZED_HOOK=1` is present, `apply_patch` changes are collected into one Zed multi-diff at the end of the turn. The review is non-blocking.
 
-- After each successful `apply_patch`, surface every hook-provided `reply 'r <file>' to revert` instruction as a standalone line.
+- After each successful `apply_patch`, retain every unique hook-provided `reply 'r <file>' to revert` instruction for that turn. Do not surface these instructions during implementation updates. Before ending the turn, append every retained instruction to the final response as a standalone line, one line per file.
 - When the user replies `r <file>`, run `python3 ~/.codex/hooks/zedcodex/revert_codex_zed_snapshot.py <file>` and then ask what they want instead.
 - For `revert all`, run the same command once for every file changed in the reviewed turn.
 - Prefer `apply_patch` for file mutation while this adapter is active. Shell redirection, `sed -i`, move commands, and scripts that write files bypass the current review detector and will not get a Zed diff or revert snapshot.

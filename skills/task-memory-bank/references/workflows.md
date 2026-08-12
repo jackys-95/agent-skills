@@ -66,7 +66,9 @@ At the end of a meaningful session, **write history first, then update active.md
 3. Set `## Last Updated` in `active.md` to a markdown link to the new session file: `[YYYY-MM-DD-session-NNN](history/YYYY-MM-DD-session-NNN.md)`. This is the only session reference `active.md` needs.
 4. Update checklist/progress in the work item `README.md` if needed.
 5. Link any new design/spec/decision docs.
-6. Run `python3 <skill-dir>/scripts/memory_bank.py reindex`. Treat this as mandatory — run it at every session end, not conditional on watcher state.
+6. Ensure settled writes are reindexed. Harness lifecycle hooks may schedule
+   this automatically; otherwise run
+   `python3 <skill-dir>/scripts/memory_bank.py reindex` after the review window.
 
 History is a reverse linked-list: `active.md` → latest session → previous session → ... Reading `active.md` plus one session file gives full context for the current state without loading the whole chain.
 
@@ -78,7 +80,7 @@ History should be append-only. Active context should be compact and replaceable.
 - [ ] `## Last Updated` in `active.md` links to the new session file
 - [ ] Work item `README.md` updated if status or progress changed
 - [ ] `work/index.md` regenerated (`regen-index`) if a work item's status changed
-- [ ] `reindex` run
+- [ ] Settled-state reindex scheduled by hooks or run manually
 
 ## When to Reindex
 
@@ -87,7 +89,9 @@ Reindex only in two situations:
 1. **Parallelizing** — another agent or session needs to see your recent memory-bank writes before you're done.
 2. **Substantial progress checkpoint** — you've completed a meaningful chunk of work and want a stable, searchable snapshot.
 
-The end-of-session reindex in the Update checklist covers case 2 for the normal case. Do not reindex after every individual file write mid-session.
+The end-of-session reindex in the Update checklist covers case 2 for the normal
+case, either through harness hooks or the manual fallback. Do not reindex after
+every individual file write mid-session.
 
 **Revert does not require reindex.** Running `revert_zed_snapshot.py` undoes a file-system change but the reverted content was never indexed — the index was correct before the write and is correct again after the revert. Only reindex after a revert if the reverted file was a memory-bank write that already crossed a checkpoint boundary (i.e., you had already reindexed it in this session).
 

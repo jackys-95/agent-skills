@@ -55,9 +55,9 @@ body = "Write a concise handoff into history and compact `active.md`. Reindex on
 [[wrappers]]
 name = "memory-reindex"
 workflow = "memory.reindex"
-description = "Manually reindex qmd after task memory bank markdown changes."
+description = "Manually reindex qmd when automatic lifecycle hooks are unavailable."
 argument_hint = "[optional-collection-or-memory-root]"
-body = "Manual fallback for when Codex reindex hooks are not installed. Run the shared reindex flow via `memory_bank.py reindex`, preferring a collection-scoped embed (`--collection <name>`) and falling back to `qmd update` and `qmd embed`. Do not modify memory markdown unless the user explicitly asks for repair."
+body = "Manual fallback for when Codex reindex hooks are skipped, disabled, untrusted, interrupted, or fail. Run the shared reindex flow via `memory_bank.py reindex`, preferring collection-scoped embeds (`--collection <name>`) and falling back to `qmd update` and `qmd embed`. Do not modify memory markdown unless the user explicitly asks for repair."
 
 [[wrappers]]
 name = "memory-doctor"

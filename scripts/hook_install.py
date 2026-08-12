@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import shlex
 
 # Claude Code global settings — the default target for hook registration.
 CLAUDE_SETTINGS = pathlib.Path.home() / ".claude" / "settings.json"
@@ -28,7 +29,7 @@ def save_settings(data: dict, settings_path: pathlib.Path = CLAUDE_SETTINGS) -> 
     settings_path.write_text(json.dumps(data, indent=2) + "\n")
 
 
-def install_hook(settings: dict, event: str, dest, matcher) -> None:
+def install_hook(settings: dict, event: str, dest, matcher, args=()) -> None:
     """Register `python3 <dest>` under `event` in a settings dict (idempotent).
 
     Turn-boundary events (UserPromptSubmit, Stop, SessionStart, SessionEnd) take no
@@ -38,7 +39,7 @@ def install_hook(settings: dict, event: str, dest, matcher) -> None:
     the caller persists it with save_settings.
     """
     entries = settings.setdefault("hooks", {}).setdefault(event, [])
-    cmd = f"python3 {dest}"
+    cmd = shlex.join(["python3", str(dest), *[str(arg) for arg in args]])
 
     for entry in entries:
         if entry.get("matcher") == matcher:

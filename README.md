@@ -39,8 +39,11 @@ The installer copies `skills/task-memory-bank`, renders `memory-*` wrapper
 skills from the Codex adapter manifest, copies plain skills listed in the
 manifest (`skills/query-kb`, `skills/knowledge-files`), and installs the qmd
 skill dependency when possible. It also upserts tagged Codex guidance into
-`~/.codex/AGENTS.md`. It does not install Codex hooks yet; use the
-`memory-reindex` wrapper as the manual fallback after memory-bank edits.
+`~/.codex/AGENTS.md`. Reindex hooks are installed under
+`~/.codex/hooks/agent-skills/` and registered in `~/.codex/hooks.json`; start a
+new Codex session and use `/hooks` to review and trust them. Use
+`--skip-hooks` to omit that automation and keep `memory-reindex` as the manual
+fallback.
 
 **query-kb setup:** query-kb reads a `registry.yaml` listing the knowledge/learning collections to search. It lives at a **harness-neutral** path beside qmd's own config — `${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml` — so every harness's skill copy reads one shared file. It is normally created and grown by the `knowledge-files` authoring skill when you add a collection; to bootstrap by hand, copy the schema reference and fill in your collection names:
 
@@ -67,7 +70,7 @@ Install the skills plus generated `/memory-*` wrappers with:
 python3 scripts/install_claude_code.py
 ```
 
-The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`, `skills/knowledge-files`), installs the qmd skill (installing qmd itself first if it is not already present), and installs the qmd reindex hooks from `adapters/claude-code/hooks/` — copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skills remain the source of truth.
+The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`, `skills/knowledge-files`), installs the qmd skill (installing qmd itself first if it is not already present), and installs qmd reindex hooks from the Claude-specific detector plus the shared runtime in `adapters/core/`. Hooks are copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skills remain the source of truth.
 
 **query-kb setup:** query-kb reads a `registry.yaml` listing the knowledge/learning collections to search. It lives at a **harness-neutral** path beside qmd's own config — `${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml` — so every harness's skill copy reads one shared file. It is normally created and grown by the `knowledge-files` authoring skill when you add a collection; to bootstrap by hand, copy the schema reference and fill in your collection names:
 
@@ -100,7 +103,7 @@ python3 adapters/zed/install.py
 **ZedCodex** pairs Zed with Codex CLI:
 
 ```bash
-# 1. Codex adapter - installs skills, wrappers, and harness-only AGENTS.md guidance
+# 1. Codex adapter - installs skills, wrappers, reindex hooks, and harness guidance
 python3 scripts/install_codex.py
 
 # 2. ZedCodex adapter - installs hooks and Zed-scoped AGENTS.md guidance

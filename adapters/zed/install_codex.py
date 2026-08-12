@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import pathlib
 import shlex
@@ -19,11 +18,12 @@ CODEX_AGENTS_SOURCE = pathlib.Path(__file__).parent / "AGENTS.md"
 PHASE_TURNS_SOURCE = pathlib.Path(__file__).parent / "phase-turns.md"
 
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from codex_hook_install import install_hook, load_config, save_config  # noqa: E402
 from install_common import install_tagged_blocks  # noqa: E402
 
 
 RUNTIME_FILES = (
-    HOOKS_SOURCE / "_codex_patch.py",
+    CORE_SOURCE / "_codex_patch.py",
     HOOKS_SOURCE / "_zed_common.py",
     HOOKS_SOURCE / "reset_codex_zed_turn.py",
     HOOKS_SOURCE / "pre_apply_patch_zed_snapshot.py",
@@ -65,56 +65,6 @@ def hook_specs(install_dir):
             "statusMessage": "Open Zed turn review",
         },
     )
-
-
-def load_config(path):
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"Cannot read {path}: {exc}")
-    if not isinstance(data, dict):
-        raise SystemExit(f"Cannot update {path}: top-level JSON must be an object")
-    return data
-
-
-def install_hook(config, spec):
-    groups = config.setdefault("hooks", {}).setdefault(spec["event"], [])
-    matcher = spec["matcher"]
-    group = next((item for item in groups if item.get("matcher") == matcher), None)
-    if group is None:
-        group = {"hooks": []}
-        if matcher is not None:
-            group["matcher"] = matcher
-        groups.append(group)
-
-    handlers = group.setdefault("hooks", [])
-    handler = next(
-        (item for item in handlers if item.get("command") == spec["command"]),
-        None,
-    )
-    desired = {
-        "type": "command",
-        "command": spec["command"],
-        "timeout": 30,
-        "statusMessage": spec["statusMessage"],
-    }
-    if "additionalContextLimit" in spec:
-        desired["additionalContextLimit"] = spec["additionalContextLimit"]
-    if handler is None:
-        handlers.append(desired)
-    else:
-        handler.update(desired)
-        if "additionalContextLimit" not in desired:
-            handler.pop("additionalContextLimit", None)
-
-
-def save_config(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f"{path.name}.tmp{os.getpid()}")
-    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
 
 
 def install_runtime(install_dir, dry_run):

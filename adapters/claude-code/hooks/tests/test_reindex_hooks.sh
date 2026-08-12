@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Unit tests for the task-memory-bank reindex hooks:
 #   post_edit_mark_dirty.py       — PostToolUse detector (marks dirty, never reindexes)
-#   reindex_dirty_collections.py  — lifecycle flush (reindex dirty collections, detached)
-#   _reindex_common.py            — index.yml parsing + path→collection mapping
+#   canonical reindex runtime     — markers, path mapping, and detached flush
 set -uo pipefail
 
 HOOKS="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$HOOKS/../../.." && pwd)"
+RUNTIME="$REPO/adapters/core"
+FLUSH="$RUNTIME/reindex_dirty_collections.py"
+export PYTHONPATH="$RUNTIME"
 PASS=0; FAIL=0
 ok()   { echo "PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 WORK=$(mktemp -d)
 export HOME="$WORK"                       # isolate ~/.config/qmd and markers' HOME refs
+export TMB_REINDEX_MARKER_DIR="$WORK/markers"
 mkdir -p "$WORK/.config/qmd"
 
 # A fake qmd registry with a tmb collection and a KB collection.
@@ -30,7 +34,7 @@ models:
   embed: whatever
 YML
 
-marker_glob="/tmp/cc_tmb_dirty_*"
+marker_glob="$TMB_REINDEX_MARKER_DIR/tmb_qmd_dirty_*"
 rm -f $marker_glob
 
 run_post() { echo "$1" | python3 "$HOOKS/post_edit_mark_dirty.py" 2>&1; }
@@ -38,7 +42,7 @@ run_post() { echo "$1" | python3 "$HOOKS/post_edit_mark_dirty.py" 2>&1; }
 # 1: edit inside the tmb collection → marker written with the collection name
 rm -f $marker_glob
 run_post "{\"tool_input\":{\"file_path\":\"$TMB_ROOT/work/active.md\"}}"
-if [ "$(cat /tmp/cc_tmb_dirty_mb-agent-skills 2>/dev/null)" = "mb-agent-skills" ]; then
+if [ "$(cat "$TMB_REINDEX_MARKER_DIR/tmb_qmd_dirty_mb-agent-skills" 2>/dev/null)" = "mb-agent-skills" ]; then
     ok "1: edit under tmb root → dirty marker for mb-agent-skills"
 else
     fail "1: no/wrong marker ($(ls $marker_glob 2>/dev/null))"
@@ -47,7 +51,7 @@ fi
 # 2: edit inside the KB collection → marker for example-knowledge
 rm -f $marker_glob
 run_post "{\"tool_input\":{\"file_path\":\"$KB_ROOT/topic.md\"}}"
-if [ "$(cat /tmp/cc_tmb_dirty_example-knowledge 2>/dev/null)" = "example-knowledge" ]; then
+if [ "$(cat "$TMB_REINDEX_MARKER_DIR/tmb_qmd_dirty_example-knowledge" 2>/dev/null)" = "example-knowledge" ]; then
     ok "2: edit under KB root → dirty marker for example-knowledge"
 else
     fail "2: no/wrong marker ($(ls $marker_glob 2>/dev/null))"
@@ -86,7 +90,7 @@ import sys
 open("$REINDEX_LOG","a").write(" ".join(sys.argv[1:]) + "\n")
 PYSHIM
 : > "$REINDEX_LOG"
-python3 "$HOOKS/reindex_dirty_collections.py" <<< '{}' 2>&1
+python3 "$FLUSH" --memory-bank "$TMB_MEMORY_BANK" <<< '{}' 2>&1
 sleep 0.3
 if [ ! -s "$REINDEX_LOG" ]; then
     ok "5: no markers → reindexer not launched"
@@ -94,20 +98,21 @@ else
     fail "5: reindexer ran with no markers: $(cat "$REINDEX_LOG")"
 fi
 
-# 6: flush hook WITH two markers → reindexer called once per collection, markers cleared
-printf 'mb-agent-skills' > /tmp/cc_tmb_dirty_mb-agent-skills
-printf 'example-knowledge' > /tmp/cc_tmb_dirty_example-knowledge
+# 6: flush hook WITH two markers → one batched reindex call, markers cleared
+printf 'mb-agent-skills' > "$TMB_REINDEX_MARKER_DIR/tmb_qmd_dirty_mb-agent-skills"
+printf 'example-knowledge' > "$TMB_REINDEX_MARKER_DIR/tmb_qmd_dirty_example-knowledge"
 : > "$REINDEX_LOG"
-python3 "$HOOKS/reindex_dirty_collections.py" <<< '{}' 2>&1
+python3 "$FLUSH" --memory-bank "$TMB_MEMORY_BANK" <<< '{}' 2>&1
 sleep 0.5
 calls=$(sort "$REINDEX_LOG" 2>/dev/null)
 shopt -s nullglob; leftover=($marker_glob); shopt -u nullglob
-if echo "$calls" | grep -q "reindex --collection mb-agent-skills" \
-   && echo "$calls" | grep -q "reindex --collection example-knowledge" \
+if [ "$(wc -l < "$REINDEX_LOG" | tr -d ' ')" -eq 1 ] \
+   && echo "$calls" | grep -q -- "--collection mb-agent-skills" \
+   && echo "$calls" | grep -q -- "--collection example-knowledge" \
    && [ ${#leftover[@]} -eq 0 ]; then
-    ok "6: two markers → reindex per collection, markers cleared"
+    ok "6: two markers → one batched reindex, markers cleared"
 else
-    fail "6: calls='$calls' leftover=${leftover[*]}"
+    fail "6: calls='$calls' leftover=${leftover[*]-}"
 fi
 
 rm -f $marker_glob

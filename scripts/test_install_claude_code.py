@@ -46,7 +46,11 @@ class TestInstallClaudeCode(unittest.TestCase):
     def test_install_reindex_hooks_dry_run_does_not_load_or_save_settings(self) -> None:
         with mock.patch.object(install_claude_code, "load_settings") as load_settings:
             with mock.patch.object(install_claude_code, "save_settings") as save_settings:
-                quiet_call(install_claude_code.install_reindex_hooks, dry_run=True)
+                quiet_call(
+                    install_claude_code.install_reindex_hooks,
+                    self.tmp / "skills",
+                    dry_run=True,
+                )
 
         load_settings.assert_not_called()
         save_settings.assert_not_called()

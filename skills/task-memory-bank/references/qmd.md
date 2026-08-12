@@ -63,7 +63,9 @@ call `qmd embed` directly:
 python3 <skill-dir>/scripts/memory_bank.py reindex --collection <name>
 ```
 
-`--collection <name>` scopes `qmd embed -c <name>` directly. Omitting it falls
-back to resolving the collection from the current git repo; with neither, all collections rebuild
-globally. `qmd update` always runs first (it has no per-collection flag, but it is a cheap
-change-scan). If reindex fails, keep the markdown writes and report the failure.
+`--collection <name>` scopes `qmd embed -c <name>` directly and may be repeated;
+all requested embeds share one initial `qmd update`. Omitting it falls back to
+resolving the collection from the current git repo; with neither, all
+collections rebuild globally. `qmd update` always runs first (it has no
+per-collection flag, but it is a cheap change-scan). If reindex fails, keep the
+markdown writes and report the failure.

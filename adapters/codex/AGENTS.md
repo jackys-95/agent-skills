@@ -20,7 +20,7 @@ If a slash/menu entry is available in the active Codex surface, it is fine to us
 - Do not create a Codex-specific memory format. Use the canonical task-memory-bank structure and scripts.
 - Do not explore or search the memory bank with filesystem tools. Use qmd tools, qmd CLI, or the task-memory-bank script's deterministic entry points.
 - Keep memory-bank edits separate from implementation edits when the user needs a clean review window.
-- Reindex only after memory-bank writes are settled. Codex reindex hooks are not installed by this adapter yet; use `$memory-reindex` or the shared `memory_bank.py reindex` command as the manual fallback.
+- Reindex only after memory-bank writes are settled. The adapter's lifecycle hooks normally handle this; use `$memory-reindex` or the shared `memory_bank.py reindex` command if hooks are skipped, disabled, untrusted, or interrupted.
 
 ## Codex Surface Notes
 

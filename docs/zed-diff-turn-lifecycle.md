@@ -129,7 +129,7 @@ boundary rather than merging into the next turn's batch.
 
 `revert_zed_snapshot.py` marks the file's collection dirty after reverting a memory-bank file, so
 the qmd index self-corrects at the next settled boundary instead of retaining the reverted
-content. (The reindex hooks — `adapters/claude-code/hooks/` — already flush dirty collections at
+content. (The shared reindex runtime in `adapters/core/` already flushes dirty collections at
 `UserPromptSubmit`/`SessionEnd`/`SessionStart` and are interrupt-safe by event choice; this closes
 the one mutation path they don't see.)
 

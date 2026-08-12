@@ -94,8 +94,10 @@ the turn-start and final states are absent.
 ## Revert guidance
 
 The hook's additional context is not directly shown in the Zed panel.
-`adapters/zed/AGENTS.md` therefore tells Codex to echo each
-`reply 'r <file>' to revert` line as standalone user-visible text.
+`adapters/zed/AGENTS.md` therefore tells Codex to retain each unique
+`reply 'r <file>' to revert` line during the turn and append the complete set
+to the final response. This keeps the guidance in one assistant message
+immediately before the Stop hook opens the multi-diff.
 
 The installer leaves `additionalContextLimit` unset, using Codex's documented
 2,500-token default. Larger output spills to disk with a model-visible preview

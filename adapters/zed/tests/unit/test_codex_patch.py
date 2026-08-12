@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
+HOOKS_DIR = Path(__file__).resolve().parents[3] / "core"
 sys.path.insert(0, str(HOOKS_DIR))
 
 from _codex_patch import canonical_path, parse_paths, paths_from_event  # noqa: E402

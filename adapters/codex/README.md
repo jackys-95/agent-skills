@@ -6,7 +6,7 @@ Installs this repository's skills into Codex's local skills directory without pa
 python3 scripts/install_codex.py
 ```
 
-The installer copies the canonical skills from `skills/`, renders short `memory-*` wrapper skills from `wrappers.toml`, and optionally installs/checks the qmd dependency. It also upserts tagged Codex guidance from `AGENTS.md` into `~/.codex/AGENTS.md` and packages the external-root permission helper under `memory-init-project` and `memory-doctor`.
+The installer copies the canonical skills from `skills/`, renders short `memory-*` wrapper skills from `wrappers.toml`, and optionally installs/checks the qmd dependency. It also upserts tagged Codex guidance from `AGENTS.md` into `~/.codex/AGENTS.md`, packages the external-root permission helper under `memory-init-project` and `memory-doctor`, and installs deferred qmd reindex hooks.
 
 The installer never modifies `~/.codex/config.toml`. The generated init and doctor wrappers run the helper in read-only `check` mode for roots they are asked to inspect; normal sessions do not repeat the check after setup. Persistent repair requires the explicit `backfill` subcommand, creates a backup, and requires a new Codex process plus `/status` verification. For a one-off session, prefer repeatable `codex --add-dir <path>` arguments. See [the Codex adapter permission model](../../docs/task-memory-bank-adapters/codex-adapter.md#external-write-permissions).
 
@@ -39,7 +39,21 @@ codex
 
 Run `/status` in that new session before using the external roots.
 
-It does not install memory-bank reindex hooks yet; use the `memory-reindex` wrapper as the manual fallback after memory-bank edits.
+Reindex runtime files are installed under `~/.codex/hooks/agent-skills/` and
+four hooks are merged into `~/.codex/hooks.json`:
+
+- `PostToolUse ^apply_patch$` marks qmd collections touched by direct edits.
+- `UserPromptSubmit` reindexes settled changes at the next turn.
+- `SessionEnd` covers the final turn of a clean session.
+- `SessionStart` on startup/resume/clear recovers markers left by an interrupted
+  session; mid-turn compaction is excluded.
+
+Deterministic task-memory-bank script writes emit the same dirty marker
+directly, because Codex Bash hook payloads do not provide canonical changed
+paths. Reindexing runs detached and silently; `qmd update` runs once per flush
+and `qmd embed -c` runs for each dirty collection. Start a new Codex session
+after installation and use `/hooks` to review and trust the definitions. Use
+`--skip-hooks` to omit them; `memory-reindex` remains the manual fallback.
 
 For optional turn-batched Zed diff/revert hooks, also run:
 
@@ -47,6 +61,8 @@ For optional turn-batched Zed diff/revert hooks, also run:
 python3 adapters/zed/install_codex.py
 ```
 
-That installer uses `~/.codex/hooks.json`, leaves `config.toml` untouched, and requires review through `/hooks`.
+Both installers merge their own definitions into `~/.codex/hooks.json`, leave
+`config.toml` untouched, and preserve each other's hooks. Changed definitions
+require another review through `/hooks`.
 
-Use `--dry-run` to preview writes, or `--target <dir>` to install somewhere other than `~/.agents/skills`. Use `--skip-agents` to leave `~/.codex/AGENTS.md` untouched.
+Use `--dry-run` to preview writes, or `--target <dir>` to install somewhere other than `~/.agents/skills`. Use `--skip-agents` to leave `~/.codex/AGENTS.md` untouched, `--skip-hooks` to omit reindex automation, or `--codex-home <dir>` to select an alternate Codex home.

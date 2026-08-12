@@ -62,23 +62,23 @@ The generated wrappers should stay short. If behavior changes, update `skills/ta
 
 ## Reindex Hooks
 
-The adapter owns the qmd reindex automation (moved here from the skill; design:
-`docs/task-memory-bank-reindex-hooks.md`). Source lives in `adapters/claude-code/hooks/`; the
-installer copies the scripts to `~/.claude/hooks/` and registers the events in
-`~/.claude/settings.json` via the neutral `scripts/hook_install.py` helper.
+The adapter owns Claude Code path extraction and native hook registration
+(design: `docs/task-memory-bank-reindex-hooks.md`). Shared marker and flush
+runtime lives in `adapters/core/`; the installer copies it with the
+Claude-specific detector to `~/.claude/hooks/` and registers events in
+`~/.claude/settings.json` via `scripts/hook_install.py`.
 
 | Event | Matcher | Script | Action |
 |---|---|---|---|
-| `PostToolUse` | `Edit\|Write` | `post_edit_mark_dirty.py` | If the edited path is under a tracked collection root (from `~/.config/qmd/index.yml`), drop a dirty marker `/tmp/cc_tmb_dirty_<collection>`. Never reindexes. |
-| `UserPromptSubmit` | — | `reindex_dirty_collections.py` | Flush: for each dirty marker, run `memory_bank.py reindex --collection <name>` detached and silent, clearing markers first. |
+| `PostToolUse` | `Edit\|Write` | `post_edit_mark_dirty.py` | If the edited path is under a tracked collection root (from `${XDG_CONFIG_HOME:-~/.config}/qmd/index.yml`), drop a dirty marker `/tmp/tmb_qmd_dirty_<collection>`. Never reindexes. |
+| `UserPromptSubmit` | — | `reindex_dirty_collections.py` | Flush dirty collections detached and silent: one `qmd update`, then one scoped embed per collection. |
 | `SessionEnd` | — | `reindex_dirty_collections.py` | Same flush — covers the final turn of a clean session. |
 | `SessionStart` | — | `reindex_dirty_collections.py` | Same flush — crash-recovery net for hard-killed sessions; no-ops otherwise. |
 
 This is the adapter's implementation of the skill's settled-state invariant ("reindex only settled
 state"): all flush events fire after the turn's diff-review window has closed, so the index never
-captures a write the user is about to revert. The flush hook locates the deployed `memory_bank.py`
-as a sibling of its own hooks directory (`<claude-dir>/skills/task-memory-bank/scripts/`);
-`TMB_MEMORY_BANK` overrides for non-default install targets.
+captures a write the user is about to revert. The installer records the deployed
+`memory_bank.py` path in each lifecycle-hook command, including non-default skill targets.
 
 Side-effect boundary: the hooks only write `/tmp` markers and invoke `memory_bank.py reindex` —
 they never modify memory-bank markdown. Manual fallback when the hooks aren't installed:

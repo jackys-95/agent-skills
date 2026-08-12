@@ -18,9 +18,11 @@ The installer copies the canonical `task-memory-bank` skill, generates short
 `memory-*` wrapper skills from `adapters/codex/wrappers.toml`, copies
 `query-kb` and `knowledge-files`, and installs/checks the qmd skill dependency
 when possible. It also upserts tagged Codex guidance from
-`adapters/codex/AGENTS.md` into `~/.codex/AGENTS.md`. Use `--dry-run` to preview
-writes, `--target <dir>` to install somewhere other than `~/.agents/skills`, or
-`--skip-agents` to leave Codex guidance untouched.
+`adapters/codex/AGENTS.md` into `~/.codex/AGENTS.md` and installs deferred qmd
+reindex hooks in `~/.codex/hooks.json`. Use `--dry-run` to preview writes,
+`--target <dir>` to install somewhere other than `~/.agents/skills`,
+`--skip-agents` to leave Codex guidance untouched, or `--skip-hooks` to omit
+reindex automation.
 
 ## External Write Permissions
 
@@ -78,9 +80,31 @@ If custom slash prompt support is unavailable in the current Codex surface, use 
 Use $task-memory-bank to resume the saved-filter task in example_project.
 ```
 
-Codex reindex hooks are intentionally out of scope for the first installer.
-After memory-bank edits, use `$memory-reindex` or run the task-memory-bank
-reindex script manually. Add Codex hooks only after validating Codex's real edit
-hook payload and matcher behavior.
+## Deferred Reindex Hooks
+
+Codex supports `PostToolUse`, `UserPromptSubmit`, `SessionStart`, and
+`SessionEnd` command hooks in user-level `~/.codex/hooks.json`; see the
+[official Codex hooks documentation](https://developers.openai.com/codex/hooks/).
+The installer uses those events to preserve the settled-state invariant:
+
+- Successful `apply_patch` calls are parsed for Add, Update, Delete, and Move
+  paths. Registered qmd collections containing those paths are marked dirty.
+- Canonical `memory_bank.py` write commands emit the same marker directly.
+  This covers deterministic shell-driven writes without trying to infer changed
+  files from a Bash payload that contains only the command.
+- `UserPromptSubmit` flushes settled changes at the next turn, `SessionEnd`
+  covers the final clean turn, and `SessionStart` on startup/resume/clear
+  recovers markers left by an interrupted session. The matcher excludes
+  `source: compact`, which Codex may emit mid-turn.
+
+The shared marker and flush runtime lives in `adapters/core/`; only changed-path
+extraction is harness-specific. Reindex work is detached and silent. One
+`qmd update` runs per flush, followed by `qmd embed -c <collection>` for each
+dirty collection.
+
+Non-managed Codex hooks require explicit trust. After installation, start a new
+Codex session and use `/hooks` to review the definitions. If hooks are skipped,
+disabled, untrusted, interrupted, or fail, use `$memory-reindex` or run the
+task-memory-bank reindex script manually.
 
 Codex automations can support scheduled or delayed maintenance workflows, such as reminding the current thread to update memory or running a periodic reindex job. Keep automations explicit and user-approved.

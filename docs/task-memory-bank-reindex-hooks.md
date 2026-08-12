@@ -1,10 +1,18 @@
 # Task Memory Bank reindex — hook-driven, marker-based design
 
-**Status:** implemented — hooks + installer wiring + `reindex --collection` landed, unit-tested;
-live end-to-end verification pending
+**Status:** implemented for Claude Code and Codex; installer and hook tests pass,
+with live Codex end-to-end verification pending
 **Date:** 2026-07-02
-**Component:** claude-code adapter (`adapters/claude-code/hooks/`);
-interacts with the Zed adapter's per-turn diff hooks (`adapters/zed/`)
+**Component:** shared adapter runtime (`adapters/core/`) plus harness-specific
+detectors and installers
+
+> **Amended 2026-08-11** Codex parity is now implemented. Collection discovery,
+> dirty-marker state, and deferred flushing live in `adapters/core/`. Claude Code
+> reads `tool_input.file_path`; Codex parses successful `apply_patch` bodies.
+> Deterministic `memory_bank.py` writes emit the same marker directly because
+> Codex Bash payloads do not expose canonical changed paths. Both installers
+> register `PostToolUse`, `UserPromptSubmit`, `SessionEnd`, and `SessionStart`
+> hooks in their native configuration.
 
 > **Amended 2026-07-03** Two changes to this record:
 >
@@ -71,10 +79,15 @@ the actual reindex runs at lifecycle boundaries that are guaranteed to be *after
 
 | Event | Matcher | Action |
 |---|---|---|
-| `PostToolUse` | `Edit\|Write` | If the edited path is under a tracked collection root, write a **dirty marker** for that collection. **No reindex** — nothing fires during the review window. |
+| `PostToolUse` | CC: `Edit\|Write`; Codex: `^apply_patch$` | Extract changed paths using the harness payload, then mark every containing collection dirty. **No reindex** runs during the review window. |
 | `UserPromptSubmit` | — | For each dirty marker: reindex that collection (detached, silent), then clear the marker. Covers every turn *except the last*; fires at the start of turn N+1, after turn N's review window closed. |
 | `SessionEnd` | — | Same as above. Covers the **final turn** of a session (which has no turn N+1). |
-| `SessionStart` | — | Same as above. In a clean session the marker was already cleared, so this **no-ops**; it only does work when a prior session was **hard-killed** (SIGKILL) after a write, leaving the marker on disk. Crash-recovery net. |
+| `SessionStart` | CC: —; Codex: `startup\|resume\|clear` | Same as above. In a clean session the marker was already cleared, so this **no-ops**; it only does work when a prior session was interrupted after a write. Codex excludes `compact` because that source can occur mid-turn. |
+
+`memory_bank.py` commands that write task-memory-bank files mark their known
+project collection directly. This is a write notification only; lifecycle hooks
+still own the deferred reindex. It avoids unreliable shell-command parsing while
+keeping direct knowledge-file and hand-edited memory writes covered by tool hooks.
 
 ### Why the marker is the keystone
 
@@ -100,12 +113,13 @@ The marker unifies all three reindex triggers and makes each one cheap and non-r
 
 - **One marker file per dirty collection**, so reindex is collection-scoped: a knowledge-base edit
   does not force a re-embed of a tmb project collection, and vice-versa. Marker lives in **`/tmp`**
-  with the collection name in the path (e.g. `/tmp/cc_tmb_dirty_<collection>`); contents hold the
+  with the collection name in the path (e.g. `/tmp/tmb_qmd_dirty_<collection>`); contents hold the
   collection name for the reindexer to read. `/tmp` is intentional — it clears on reboot, and a
   reboot implies no pending session to reindex, so a lost marker is never a lost update.
 - **Tracked roots come from qmd's config file directly — no hardcoded paths, no subprocess, no
   dependency on query-kb's git-ignored `registry.yaml`.** qmd keeps a single human-readable registry
-  at **`~/.config/qmd/index.yml`** listing *every* collection with its `path` and `pattern`:
+  at **`${XDG_CONFIG_HOME:-~/.config}/qmd/index.yml`** listing *every* collection
+  with its `path` and `pattern`:
 
   ```yaml
   collections:
@@ -144,8 +158,8 @@ Reading a *skill* registry instead would be wrong on two counts. First, neither 
 paths for *all* collections — `collections.yaml` omits KB, query-kb's `registry.yaml` omits paths
 entirely (it delegates them to qmd). Second, registration is **asymmetric** and partly manual:
 
-- **tmb** collections: `init-project` only *prints* `qmd collection add` today (auto-registration is
-  backlog under [#21](https://github.com/jackys-95/agent-skills/issues/21)).
+- **tmb** collections: `init-project` writes the bank registry and invokes
+  `qmd collection add` plus `qmd context add`.
 - **knowledge** collections: registered by the `knowledge-files` authoring skill, whose new-collection workflow appends a `contains`/`domain` entry to query-kb's registry (at `~/.config/qmd/registry.yaml`) alongside a `qmd collection add` for the path. A human `qmd collection add` plus a hand-edited registry line also works.
 
 A human `qmd collection add` bypasses any skill anyway — but every path **rewrites
@@ -164,58 +178,32 @@ no cache.)
   - **Multiple dirty collections at one boundary:** run `qmd update` **once**, then `qmd embed -c`
     **per dirty collection** — never `update` per marker.
 
-### 4.2 Two artifacts, two homes
+### 4.2 Ephemeral state
 
-This design writes two kinds of scratch state, and they do **not** belong in the same place:
-
-| Artifact | Nature | Home | Why |
-|---|---|---|---|
-| **dirty markers** | per-session, ephemeral — "this session wrote collection X and hasn't reindexed" | **`/tmp`** | A reboot ends the session, so a marker has no meaning afterward. Losing it on reboot is *correct*, not just tolerable. |
-| **root-map cache** | machine-global, derived — a read-through cache of qmd's collection→path map | **stable per-user cache dir** (`~/.cache/cc-tmb-reindex/` or under `~/.claude/`) | Identical across every session and repo; nothing session-scoped to discard. `/tmp` would throw it away every reboot and force a needless rebuild-from-qmd on the next session's first write. Living beside qmd's config also makes mtime-invalidation (§4.1 option 1) a clean two-stable-paths comparison. |
-
-The root-map cache *tolerates* `/tmp` (a lost cache is cheap to rebuild — a couple of `qmd` calls),
-but "cheap to rebuild" argues it survives loss, not that it belongs in ephemeral storage. Only the
-markers have a positive reason to be ephemeral.
+Dirty markers are the only scratch state. They live in the platform temporary
+directory (`tempfile.gettempdir()`, normally `/tmp`) and can be redirected with
+`TMB_REINDEX_MARKER_DIR` for tests. Collection roots are read directly from
+qmd's configuration on each detector invocation, so there is no root-map cache
+or cache invalidation lifecycle.
 
 ## 5. Placement
 
-> **Superseded on 2026-07-03 — see the amendment banner.** The "logic belongs to the
-> skill" conclusion below missed that the scripts themselves are CC-specific; they now live in
-> `adapters/claude-code/hooks/`. The installer-separation analysis remains valid.
+The implementation has three ownership layers:
 
-Separate the hook's **logic** from its **registration**:
+- `adapters/core/reindex_state.py` owns qmd collection lookup and the neutral
+  marker protocol.
+- `adapters/core/reindex_dirty_collections.py` owns detached, collection-scoped
+  flushing.
+- Harness adapters own payload extraction and native registration. Claude Code
+  uses `adapters/claude-code/hooks/post_edit_mark_dirty.py` and
+  `~/.claude/settings.json`; Codex uses
+  `adapters/codex/hooks/post_apply_patch_mark_dirty.py` and
+  `~/.codex/hooks.json`.
 
-- **Logic (the hook scripts) belongs to the task-memory-bank skill** — reindex is a memory-bank
-  concern with nothing Zed-specific, and the scripts sit naturally beside `memory_bank.py`.
-- **Registration belongs to the CC installer** (`scripts/install_claude_code.py`) — these are
-  Claude Code hook *events* (`PostToolUse`, `UserPromptSubmit`, `SessionEnd`, `SessionStart`),
-  wired into `~/.claude/settings.json`. That is CC-harness config, so it rides with the CC install,
-  not the editor-agnostic skill copy.
-
-**Two installers stay separate — CC hooks and Zed hooks must not be coupled.** A user who runs CC
-without Zed must be able to install the reindex hooks without pulling in *any* Zed adapter code, and
-vice-versa. So:
-
-- The **reindex hooks** are registered by the CC installer (`scripts/install_claude_code.py`).
-- The **Zed diff hooks** stay registered by `adapters/zed/install.py`.
-- Neither installer imports the other, and neither is a prerequisite for the other.
-
-**Caveat — the CC installer cannot register hooks today.** `scripts/install_claude_code.py`
-currently installs skills, the qmd skill, and CLAUDE.md blocks only; it has **no** `settings.json`
-hook-registration code. The only such machinery is `adapters/zed/install.py`'s idempotent
-`install_claude_hook()` (matcher-merge + duplicate-guard). Reusing it must **not** be done by
-importing from `adapters/zed/` — that would make CC-only installs depend on the Zed adapter, the
-exact coupling we're avoiding. Instead, lift `install_claude_hook()` into a **neutral shared module**
-(e.g. `scripts/hook_install.py`) that *both* installers import independently.
-
-| Option | Verdict |
-|---|---|
-| **Separate installers, neutral shared helper** (chosen) | ✅ CC-only and Zed-only installs are each self-contained. Shared matcher-merge logic lives in a neutral module both import — no adapter→adapter dependency. |
-| **CC installer imports the Zed helper** | ❌ Makes a CC-only user depend on Zed adapter code. Rejected. |
-| **Fold reindex into the Zed adapter** (`reset_zed_turn.py`) | ❌ Couples a tmb concern to Zed and only fires inside Zed. Rejected. |
-
-The Zed adapter and this reindexer are independent hook sets that happen to share the
-`UserPromptSubmit` boundary; they must not assume each other's presence or installer.
+The canonical memory script emits only the dirty signal for deterministic writes;
+it does not contain lifecycle or hook-payload logic. Claude Code, Codex, and Zed
+installers remain independent and merge their own definitions without importing
+another adapter.
 
 ## 6. Skill guidance change
 
@@ -249,27 +237,15 @@ Replace the current instruction in `skills/task-memory-bank/SKILL.md`
   always re-scans all collections (cheap change-scan); `qmd embed -c <name>` scopes the expensive
   pass to the modified collection. Multiple dirty collections at one boundary: `update` **once**,
   then `embed -c` per collection (§4).
-- **Installers → separate, no coupling.** CC reindex hooks register via
-  `scripts/install_claude_code.py`; Zed diff hooks via `adapters/zed/install.py`. A CC-only user
-  never pulls in Zed code, and vice-versa. Hook *scripts* live with the tmb skill (§5).
+- **Shared runtime, separate registration.** Reindex state and flushing live in
+  `adapters/core/`; Claude Code and Codex each provide their own detector and
+  installer wiring. Zed review hooks remain independent.
 
 **Open:**
 
-> **Stale as of 2026-07-03: both items below landed** — `scripts/hook_install.py`
-> exists and both installers import it; `reindex --collection` shipped with the hooks.
-
-- **Neutral shared hook-install helper:** the CC installer has no `settings.json` hook-registration
-  code today; the only copy is in `adapters/zed/install.py`. Lift `install_claude_hook()` into a
-  **neutral** module (e.g. `scripts/hook_install.py`) that both installers import — **not** an import
-  from `adapters/zed/` (that would recouple CC installs to the Zed adapter). This is the main build
-  prerequisite.
-- **Add `memory_bank.py reindex --collection <name>`:** today `reindex` scopes `embed` only by
-  resolving the current git repo → collection (via `--memory-root` + cwd), which is wrong for this
-  hook — at `SessionStart`/`SessionEnd`/`UserPromptSubmit` the cwd may not be (or map to) the dirty
-  collection, and KB collections have no git repo at all. Add a `--collection <name>` argument that
-  scopes `qmd embed -c <name>` directly, bypassing cwd resolution; the hook reads the collection name
-  straight from the dirty marker and passes it. Keep the existing repo-resolution path as the
-  fallback when `--collection` is omitted.
+- Live Codex verification should confirm install, `/hooks` trust, direct
+  `apply_patch` marking, next-turn flush, final-session flush, and coexistence
+  with the ZedCodex hook set.
 
 ## 8. Non-goals (inherited from the watcher note)
 

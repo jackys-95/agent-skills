@@ -33,7 +33,8 @@ not universal:
 - The canonical skill owns portable workflow semantics: phase names, checkpoint invariants,
   memory-bank data shape, operation ordering, and fallback behavior.
 - A harness adapter owns mechanics native to one agent harness: skill discovery, command wrappers,
-  hook payloads, permission setup, and harness-specific reindex automation.
+  hook payloads, permission setup, and native hook registration. Runtime shared by multiple
+  harness adapters belongs in `adapters/core/`.
 - A meta-harness or pairing adapter owns behavior created by composing a harness with another
   surface: editor review windows, turn batching, and the binding of canonical checkpoints to turn
   boundaries.

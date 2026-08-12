@@ -97,6 +97,8 @@ class TestInstallCodex(unittest.TestCase):
         self.assertIn("<!-- zed-codex-adapter -->", agents_text)
         self.assertIn("<!-- phase-turns -->", agents_text)
         self.assertIn("Phase-Scoped Turns", agents_text)
+        self.assertIn("Do not surface these instructions during implementation updates", agents_text)
+        self.assertIn("Before ending the turn", agents_text)
         self.assertNotIn("<!-- codex-agent-skills -->", agents_text)
 
     def test_dry_run_does_not_write(self):

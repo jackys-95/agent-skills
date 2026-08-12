@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract file paths from Codex apply_patch hook payloads."""
+"""Extract file paths from Codex apply_patch hook payloads for adapters."""
 
 from __future__ import annotations
 

@@ -14,7 +14,7 @@ case for ordinary code edits).
 import json
 import sys
 
-from _reindex_common import collection_for_path, marker_path
+from reindex_state import mark_path_dirty
 
 
 def main():
@@ -27,14 +27,7 @@ def main():
     if not file_path:
         sys.exit(0)
 
-    collection = collection_for_path(file_path)
-    if not collection:
-        sys.exit(0)  # edit is outside every tracked collection — nothing to reindex
-
-    # Marker contents = the collection name, so the lifecycle hooks enumerate dirty
-    # collections from the markers alone. Idempotent: re-marking is a cheap rewrite.
-    with open(marker_path(collection), "w") as f:
-        f.write(collection)
+    mark_path_dirty(file_path)
 
 
 if __name__ == "__main__":
