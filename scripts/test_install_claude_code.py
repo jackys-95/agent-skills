@@ -148,17 +148,26 @@ class TestInstallClaudeCode(unittest.TestCase):
 
         with mock.patch.object(sys, "argv", argv):
             with mock.patch.object(install_claude_code, "install_canonical_skills"):
-                with mock.patch.object(install_claude_code, "install_plain_skills"):
-                    with mock.patch.object(install_claude_code, "install_qmd_skill"):
-                        with mock.patch.object(
-                            install_claude_code, "install_reindex_hooks"
-                        ):
-                            self.assertEqual(
-                                quiet_call(install_claude_code.main),
-                                0,
-                            )
+                with mock.patch.object(
+                    install_claude_code,
+                    "install_memory_bank_adapter",
+                ) as install_adapter:
+                    with mock.patch.object(install_claude_code, "install_plain_skills"):
+                        with mock.patch.object(install_claude_code, "install_qmd_skill"):
+                            with mock.patch.object(
+                                install_claude_code, "install_reindex_hooks"
+                            ):
+                                self.assertEqual(
+                                    quiet_call(install_claude_code.main),
+                                    0,
+                                )
 
         self.assertFalse((self.tmp / "CLAUDE.md").exists())
+        install_adapter.assert_called_once_with(
+            install_claude_code.REPO_ROOT,
+            target.resolve(),
+            False,
+        )
 
 
 if __name__ == "__main__":

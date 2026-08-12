@@ -89,9 +89,11 @@ The installer uses those events to preserve the settled-state invariant:
 
 - Successful `apply_patch` calls are parsed for Add, Update, Delete, and Move
   paths. Registered qmd collections containing those paths are marked dirty.
-- Canonical `memory_bank.py` write commands emit the same marker directly.
-  This covers deterministic shell-driven writes without trying to infer changed
-  files from a Bash payload that contains only the command.
+- When hooks are enabled, the installer composes an adapter-owned
+  `memory_bank.py` facade over the preserved canonical script. The facade marks
+  successful deterministic writes without trying to infer changed files from a
+  Bash payload that contains only the command. `--skip-hooks` leaves the
+  canonical entrypoint untouched.
 - `UserPromptSubmit` flushes settled changes at the next turn, `SessionEnd`
   covers the final clean turn, and `SessionStart` on startup/resume/clear
   recovers markers left by an interrupted session. The matcher excludes

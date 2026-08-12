@@ -79,6 +79,9 @@ This is the adapter's implementation of the skill's settled-state invariant ("re
 state"): all flush events fire after the turn's diff-review window has closed, so the index never
 captures a write the user is about to revert. The installer records the deployed
 `memory_bank.py` path in each lifecycle-hook command, including non-default skill targets.
+That installed entrypoint is an adapter-owned facade over a preserved canonical
+`_memory_bank.py`; it marks successful deterministic writes through the same
+shared state module. A direct canonical skill installation remains unmodified.
 
 Side-effect boundary: the hooks only write `/tmp` markers and invoke `memory_bank.py reindex` —
 they never modify memory-bank markdown. Manual fallback when the hooks aren't installed:

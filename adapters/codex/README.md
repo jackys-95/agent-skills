@@ -48,12 +48,14 @@ four hooks are merged into `~/.codex/hooks.json`:
 - `SessionStart` on startup/resume/clear recovers markers left by an interrupted
   session; mid-turn compaction is excluded.
 
-Deterministic task-memory-bank script writes emit the same dirty marker
-directly, because Codex Bash hook payloads do not provide canonical changed
-paths. Reindexing runs detached and silently; `qmd update` runs once per flush
-and `qmd embed -c` runs for each dirty collection. Start a new Codex session
-after installation and use `/hooks` to review and trust the definitions. Use
-`--skip-hooks` to omit them; `memory-reindex` remains the manual fallback.
+When hooks are enabled, the installer composes an adapter-owned entrypoint over
+the preserved canonical task-memory-bank script. Successful deterministic writes
+therefore emit the same dirty marker without parsing Codex Bash payloads. A
+`--skip-hooks` install leaves the canonical script untouched. Reindexing runs
+detached and silently; `qmd update` runs once per flush and `qmd embed -c` runs
+for each dirty collection. Start a new Codex session after installation and use
+`/hooks` to review and trust the definitions. `memory-reindex` remains the
+manual fallback.
 
 For optional turn-batched Zed diff/revert hooks, also run:
 

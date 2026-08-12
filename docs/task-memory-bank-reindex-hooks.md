@@ -9,10 +9,10 @@ detectors and installers
 > **Amended 2026-08-11** Codex parity is now implemented. Collection discovery,
 > dirty-marker state, and deferred flushing live in `adapters/core/`. Claude Code
 > reads `tool_input.file_path`; Codex parses successful `apply_patch` bodies.
-> Deterministic `memory_bank.py` writes emit the same marker directly because
-> Codex Bash payloads do not expose canonical changed paths. Both installers
-> register `PostToolUse`, `UserPromptSubmit`, `SessionEnd`, and `SessionStart`
-> hooks in their native configuration.
+> Deterministic writes run through an adapter-owned facade composed over the
+> installed canonical `memory_bank.py`; the standalone canonical skill has no
+> marker dependency. Both installers register `PostToolUse`, `UserPromptSubmit`,
+> `SessionEnd`, and `SessionStart` hooks in their native configuration.
 
 > **Amended 2026-07-03** Two changes to this record:
 >
@@ -84,10 +84,12 @@ the actual reindex runs at lifecycle boundaries that are guaranteed to be *after
 | `SessionEnd` | — | Same as above. Covers the **final turn** of a session (which has no turn N+1). |
 | `SessionStart` | CC: —; Codex: `startup\|resume\|clear` | Same as above. In a clean session the marker was already cleared, so this **no-ops**; it only does work when a prior session was interrupted after a write. Codex excludes `compact` because that source can occur mid-turn. |
 
-`memory_bank.py` commands that write task-memory-bank files mark their known
-project collection directly. This is a write notification only; lifecycle hooks
-still own the deferred reindex. It avoids unreliable shell-command parsing while
-keeping direct knowledge-file and hand-edited memory writes covered by tool hooks.
+Adapter installers preserve the canonical script as `_memory_bank.py` and place
+the shared `adapters/core/memory_bank_adapter.py` facade at the installed
+`memory_bank.py` path. The facade delegates through the canonical parser and
+marks successful deterministic writes. This avoids unreliable shell-command
+parsing while leaving a direct canonical skill installation adapter-independent.
+Direct knowledge-file and hand-edited memory writes remain covered by tool hooks.
 
 ### Why the marker is the keystone
 
@@ -192,6 +194,8 @@ The implementation has three ownership layers:
 
 - `adapters/core/reindex_state.py` owns qmd collection lookup and the neutral
   marker protocol.
+- `adapters/core/memory_bank_adapter.py` owns success-only dirty marking for
+  deterministic canonical commands in adapter-composed installations.
 - `adapters/core/reindex_dirty_collections.py` owns detached, collection-scoped
   flushing.
 - Harness adapters own payload extraction and native registration. Claude Code
@@ -200,10 +204,9 @@ The implementation has three ownership layers:
   `adapters/codex/hooks/post_apply_patch_mark_dirty.py` and
   `~/.codex/hooks.json`.
 
-The canonical memory script emits only the dirty signal for deterministic writes;
-it does not contain lifecycle or hook-payload logic. Claude Code, Codex, and Zed
-installers remain independent and merge their own definitions without importing
-another adapter.
+The canonical memory script contains no marker protocol or adapter imports.
+Claude Code and Codex compose the shared facade when they install reindex hooks;
+Zed remains independent, and no adapter imports another adapter.
 
 ## 6. Skill guidance change
 
