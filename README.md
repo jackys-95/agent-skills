@@ -12,12 +12,32 @@ macOS and Linux are both supported. For Zed users, Windows is out of scope until
 - [query-kb](skills/query-kb/SKILL.md): qmd-backed knowledge base retrieval (knowledge files + learning primers); delegates task scope to task-memory-bank.
 - [knowledge-files](skills/knowledge-files/SKILL.md): qmd-backed knowledge file authoring (classify, split into per-entity files, cross-reference, promote learning → knowledge); the write side of the knowledge base.
 
+## MCP client
+
+[mcp_client/](mcp_client/README.md) is a lightweight, stdlib-only MCP client for the
+Streamable HTTP transport. It lets a harness or script use a local HTTP MCP server
+(such as `qmd mcp --http`, default `http://127.0.0.1:8181/mcp`) without native MCP
+support — list tools and call them:
+
+```bash
+python3 mcp_client/mcp_client.py info
+python3 mcp_client/mcp_client.py list-tools
+python3 mcp_client/mcp_client.py call query '{"searches":[{"type":"lex","query":"..."}],"intent":"..."}'
+```
+
 ## Tests
 
 Run installer unit tests with:
 
 ```bash
 python3 -m unittest discover -s scripts -p 'test_*.py'
+```
+
+Run the MCP client tests (no network/qmd required — they use a fake in-process
+MCP server) with:
+
+```bash
+python3 mcp_client/tests/test_mcp_client.py
 ```
 
 ## Install For Codex

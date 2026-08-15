@@ -256,8 +256,8 @@ This is the re-scoped pilot. It is self-scoring through the CLI's enum validatio
 Not part of the controlled experiment — one manual smoke test, logged because it produced a
 concrete failure signature worth watching for once the real fixture exists.
 
-**Setup:** a Pi extension (`~/.pi/agent/extensions/sirius-review.ts`, global scope) registers
-`qwen3.6-27b-q5km` served from sirius's llama.cpp router as a provider, plus a `/review-pr`
+**Setup:** a Pi extension (`~/.pi/agent/extensions/local-model-review.ts`, global scope) registers
+`qwen3.6-27b-q5km` served from a local llama.cpp host as a provider, plus a `/review-pr`
 command that fetches a PR diff via `gh` and hands it to the model with a review prompt. Run
 against PR #66 (adapter core extraction), reviewed independently against the actual diff.
 
