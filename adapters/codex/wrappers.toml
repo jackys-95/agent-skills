@@ -57,7 +57,7 @@ name = "memory-reindex"
 workflow = "memory.reindex"
 description = "Manually reindex qmd when automatic lifecycle hooks are unavailable."
 argument_hint = "[optional-collection-or-memory-root]"
-body = "Manual fallback for when Codex reindex hooks are skipped, disabled, untrusted, interrupted, or fail. Run the shared reindex flow via `memory_bank.py reindex`, preferring collection-scoped embeds (`--collection <name>`) and falling back to `qmd update` and `qmd embed`. Do not modify memory markdown unless the user explicitly asks for repair."
+body = "Manual fallback when no matching Codex reindex hooks are installed, or installed hooks are disabled, untrusted, interrupted, or fail. Resolve the exact dirty collection names and wait until writes are settled. Run one `qmd update`, then request one-shot approval to run each exact `qmd embed -c <collection>` command outside the spawned-command sandbox. Do not invoke the shared reindex subprocess first when it would hide a sandboxed embed failure. Never request a bare `qmd embed`, broad qmd/Python/shell prefix, or `danger-full-access`. Do not modify memory markdown unless the user explicitly asks for repair."
 
 [[wrappers]]
 name = "memory-doctor"

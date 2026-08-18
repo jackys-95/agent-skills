@@ -8,6 +8,9 @@ import os
 from pathlib import Path
 
 
+DEFAULT_HOOK_TIMEOUT = 30
+
+
 def load_config(path: Path) -> dict:
     if not path.exists():
         return {}
@@ -38,7 +41,7 @@ def install_hook(config: dict, spec: dict) -> None:
     desired = {
         "type": "command",
         "command": spec["command"],
-        "timeout": spec.get("timeout", 30),
+        "timeout": spec.get("timeout", DEFAULT_HOOK_TIMEOUT),
         "statusMessage": spec["statusMessage"],
     }
     if "additionalContextLimit" in spec:
