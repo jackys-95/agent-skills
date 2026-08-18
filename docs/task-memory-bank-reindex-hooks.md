@@ -1,10 +1,8 @@
 # Task Memory Bank reindex — hook-driven, marker-based design
 
-**Status:** implemented for Claude Code and Codex; installer and hook tests pass,
-with live Codex end-to-end verification pending
+**Status:** implemented for Claude Code and Codex; installer and hook tests pass, and bare Codex plus ZedCodex qmd boundary verification is complete
 **Date:** 2026-07-02
-**Component:** shared adapter runtime (`adapters/core/`) plus harness-specific
-detectors and installers
+**Component:** shared adapter runtime (`adapters/core/`) plus harness-specific detectors and installers
 
 > **Amended 2026-08-11** Codex parity is now implemented. Collection discovery,
 > dirty-marker state, and deferred flushing live in `adapters/core/`. Claude Code
@@ -13,6 +11,8 @@ detectors and installers
 > installed canonical `memory_bank.py`; the standalone canonical skill has no
 > marker dependency. Both installers register `PostToolUse`, `UserPromptSubmit`,
 > `SessionEnd`, and `SessionStart` hooks in their native configuration.
+
+> **Amended 2026-08-17** Codex hook installation now requires informed consent. Interactive installation explains that, after separate `/hooks` review and trust, the definitions can run qmd inference with host user permissions. Non-interactive installation requires `--enable-hooks` or `--skip-hooks`; skipping preserves a complete matching managed hook installation without rewriting it, while a fresh skipped install remains manual-only. Current Codex builds have been observed to execute trusted hooks outside the spawned-command sandbox, but official hook documentation does not guarantee that placement. The write-to-marker-to-embed-to-MCP retrieval smoke test is therefore required regression coverage. Without active hooks, the Codex wrapper runs one `qmd update` and requests one-shot approval only for exact `qmd embed -c <collection>` commands.
 
 > **Amended 2026-07-03** Two changes to this record:
 >
@@ -179,6 +179,7 @@ no cache.)
     unavoidable global `update`. Net effect: only the modified collection is actually re-embedded.
   - **Multiple dirty collections at one boundary:** run `qmd update` **once**, then `qmd embed -c`
     **per dirty collection** — never `update` per marker.
+  - **Codex execution boundary:** writable qmd cache/config roots allow index writes but do not expose Metal APIs to spawned commands. Trusted lifecycle hooks currently provide the host-side embed path. This is verified behavior, not a documented Codex guarantee; manual fallback approval must name the exact collection and command rather than allowing a broad qmd, Python, or shell prefix.
 
 ### 4.2 Ephemeral state
 
@@ -243,15 +244,15 @@ Replace the current instruction in `skills/task-memory-bank/SKILL.md`
 - **Shared runtime, separate registration.** Reindex state and flushing live in
   `adapters/core/`; Claude Code and Codex each provide their own detector and
   installer wiring. Zed review hooks remain independent.
+- **Codex hook installation requires consent.** Installer consent controls whether definitions are written; `/hooks` trust independently controls whether Codex executes those exact definitions.
 
-**Open:**
+**Verified:**
 
-- Live Codex verification should confirm install, `/hooks` trust, direct
-  `apply_patch` marking, next-turn flush, final-session flush, and coexistence
-  with the ZedCodex hook set.
+- Live bare Codex and ZedCodex smoke tests confirmed MCP reads, installer consent and `/hooks` trust, direct `apply_patch` marking, next-turn and final-session flushes, collection-scoped host-side embedding, SessionStart deletion recovery, semantic retrieval, and coexistence of both hook sets.
 
 ## 8. Non-goals (inherited from the watcher note)
 
 - Do not parse markdown, cache contents, or maintain checksums.
 - Do not reimplement qmd indexing outside qmd.
 - Do not require the hooks for correctness — explicit `memory_bank.py reindex` must still work.
+- Do not use `danger-full-access` or broad qmd, Python, or shell allow rules to bypass the Codex command sandbox.

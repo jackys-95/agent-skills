@@ -35,15 +35,9 @@ Codex discovers installed skills from:
 ~/.agents/skills/<skill-name>/SKILL.md
 ```
 
-The installer copies `skills/task-memory-bank`, renders `memory-*` wrapper
-skills from the Codex adapter manifest, copies plain skills listed in the
-manifest (`skills/query-kb`, `skills/knowledge-files`), and installs the qmd
-skill dependency when possible. It also upserts tagged Codex guidance into
-`~/.codex/AGENTS.md`. Reindex hooks are installed under
-`~/.codex/hooks/agent-skills/` and registered in `~/.codex/hooks.json`; start a
-new Codex session and use `/hooks` to review and trust them. Use
-`--skip-hooks` to omit that automation and keep `memory-reindex` as the manual
-fallback.
+The installer copies `skills/task-memory-bank`, renders `memory-*` wrapper skills from the Codex adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`, `skills/knowledge-files`), and installs the qmd skill dependency when possible. It also configures qmd MCP reads in `~/.codex/config.toml` without replacing unrelated settings and upserts tagged Codex guidance into `~/.codex/AGENTS.md`; restart and use `/mcp` to verify the qmd tools.
+
+Reindex hooks are optional and require informed consent. An interactive install prompts before writing new or updated definitions; non-interactive installs must pass `--enable-hooks` or `--skip-hooks`. Skipping does not remove or rewrite existing managed registrations: a fresh skipped install keeps the canonical script and collection-scoped `memory-reindex` fallback, while a complete matching hook installation keeps its adapter entrypoint. After enabling hooks, start a new Codex session and use `/hooks` for the separate review and trust step.
 
 **query-kb setup:** query-kb reads a `registry.yaml` listing the knowledge/learning collections to search. It lives at a **harness-neutral** path beside qmd's own config — `${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml` — so every harness's skill copy reads one shared file. It is normally created and grown by the `knowledge-files` authoring skill when you add a collection; to bootstrap by hand, copy the schema reference and fill in your collection names:
 
@@ -103,7 +97,7 @@ python3 adapters/zed/install.py
 **ZedCodex** pairs Zed with Codex CLI:
 
 ```bash
-# 1. Codex adapter - installs skills, wrappers, reindex hooks, and harness guidance
+# 1. Codex adapter - configures qmd MCP, installs skills, and offers reindex hooks
 python3 scripts/install_codex.py
 
 # 2. ZedCodex adapter - installs hooks and Zed-scoped AGENTS.md guidance
