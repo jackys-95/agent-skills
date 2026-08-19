@@ -51,9 +51,11 @@ The full model (SOLID mapping, file skeletons, sizing heuristics) is in
 - **Soft-wrap prose — one line per paragraph, never hard-wrap mid-sentence**, and keep a blank line
   between a heading and its body. Hard wraps render as stray newlines and break phrase/link greps.
   See [references/authoring-principles.md](references/authoring-principles.md).
-- **Reindex after every write or promotion** — a file that isn't indexed can't be retrieved. This
-  skill owns the obligation; the mechanic is in /qmd. Note: the task-memory-bank `reindex` script
-  does **not** cover knowledge/learning collections — reindex those directly via qmd.
+- **Reindex every settled authoring or promotion operation** — a file that isn't indexed can't be
+  retrieved. Finish the write and any editor review before reindexing. A healthy harness lifecycle
+  integration may mark and flush the affected collection after review; otherwise invoke qmd
+  directly for that collection. This skill owns the obligation; the mechanic is in /qmd. The
+  task-memory-bank `reindex` script does **not** cover knowledge/learning collections.
 
 ## Workflows
 
@@ -62,12 +64,17 @@ The full model (SOLID mapping, file skeletons, sizing heuristics) is in
    [references/classification.md](references/classification.md).
 2. **Create vs. append** — apply the new-file-vs-append heuristics in
    [references/authoring-principles.md](references/authoring-principles.md).
-3. **Write to the contract** — entity-atom skeleton; fill Definition, Boundaries, Relationships.
-4. **Cross-reference** — bidirectional links to related atoms.
-5. **Register the collection (only if this is a new collection)** — if the file lands in a knowledge/learning collection that does not yet exist, register it in **both** catalogs so it is indexable *and* discoverable by query-kb:
+3. **Select and register the destination** — identify the collection name, exact root,
+   classification, and domain before the first content write. For a new knowledge/learning
+   collection, complete any platform-specific pre-registration permission check before creating
+   the root or changing either catalog, then register it in **both** catalogs:
    - qmd's `index.yml` — its `path`/`pattern`, via `qmd collection add` (mechanics in /qmd).
-   - query-kb's registry at **`${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml`** — append a `contains` (`knowledge` | `learning`) + `domain` entry keyed by the same collection name. This is the registry's authoring-driven origin: create the file if it does not exist yet. See [references/classification.md](references/classification.md) for the field meanings. Skip this step when appending to a collection that is already registered.
-6. **Reindex** — via /qmd, scoped to the knowledge collection. Verify retrievable.
+   - query-kb's registry at **`${XDG_CONFIG_HOME:-~/.config}/qmd/registry.yaml`** — append a `contains` (`knowledge` | `learning`) + `domain` entry keyed by the same collection name. This is the registry's authoring-driven origin: create the file if it does not exist yet. See [references/classification.md](references/classification.md) for the field meanings. Skip registration when the destination collection already exists in both catalogs.
+4. **Write to the contract** — entity-atom skeleton; fill Definition, Boundaries, Relationships.
+5. **Cross-reference** — bidirectional links to related atoms.
+6. **Settle, reindex, verify** — after the write and its review window are settled, let a healthy
+   harness lifecycle integration flush the affected collection or invoke /qmd directly for that
+   collection. Verify the file is retrievable.
 
 ### Promote learning → knowledge
 Follow [references/promotion.md](references/promotion.md): decompose the primer into atoms,

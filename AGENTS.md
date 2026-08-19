@@ -30,6 +30,12 @@ public record. A reader of the repo history should never need — or be exposed 
 planning vocabulary. One epic often spans several local tasks; naming a branch after the issue
 keeps the mapping public-side clean.
 
+## Tests: semantic guidance assertions
+
+- Normalize whitespace when a test checks the meaning of Markdown guidance so prose wrapping does not become part of the contract.
+- For multiline shell examples, remove only shell line-continuation backslash-newline sequences before whitespace normalization, or compare parsed argument tokens in order.
+- Use raw-text assertions when line breaks, indentation, or exact rendering are behavior under test.
+
 ## Commit and PR shape: short commit, long PR
 
 Keep the commit message short; put the detailed explanation in the PR description.

@@ -22,6 +22,10 @@ If a slash/menu entry is available in the active Codex surface, it is fine to us
 - Keep memory-bank edits separate from implementation edits when the user needs a clean review window.
 - Reindex only after memory-bank writes are settled. The adapter's trusted lifecycle hooks normally handle this. If hooks are unavailable, use `$memory-reindex`: run one `qmd update`, then request one-shot approval for each exact `qmd embed -c <collection>` command.
 
+## Knowledge File Discipline
+
+- Before every external knowledge or learning write, invoke and follow `$knowledge-files`. The Codex adapter adds a mandatory `## Codex Write Permissions` section to the installed skill; do not write until its preflight succeeds or `/status` confirms the exact launch-scoped root required by the write.
+
 ## Codex Surface Notes
 
 These instructions assume Codex can read local skills from `~/.agents/skills`. Avoid depending on product-specific desktop UI behavior in the skill workflow.
