@@ -1,8 +1,8 @@
 # Promotion: learning → knowledge
 
 How a WIP primer in the `learning` tier graduates into approved `knowledge`. This is a **manual,
-doc-guided** step (no script in this MVP). The skill owns the *obligation* to reindex; it delegates
-the *mechanic* to the qmd skill.
+doc-guided** step (no script in this MVP). The skill owns the *obligation* to reindex after the
+write and review window are settled; it delegates the *mechanic* to the qmd skill.
 
 ## Why a promotion step exists
 
@@ -35,21 +35,26 @@ act of vetting and restructuring WIP prose into authoritative atoms — it is no
    note it's been superseded by the knowledge atom(s), or (b) trim it to a pointer. Do **not**
    delete study context silently. Default: leave it, add a "promoted to" note.
 
-7. **Reindex so the new file is discoverable.** *This skill owns this obligation* — a knowledge
-   file that isn't indexed cannot be retrieved. Reindex the affected collection immediately after
-   writing/promoting.
+7. **Settle and reindex so the new file is discoverable.** *This skill owns this obligation* — a
+   knowledge file that isn't indexed cannot be retrieved. Wait until the write and editor review
+   window are settled. Then let a healthy harness lifecycle integration flush the affected
+   collection, or invoke qmd directly for that collection.
 
 ## Reindex — obligation here, mechanic in /qmd
 
 Per the skill↔qmd boundary, this doc states *that* you must reindex and *which* collection; it does
 **not** pin the command. Invoke the **qmd skill** (`/qmd`) for the current syntax.
 
+Do not reindex while the promotion files are still provisional or revertible in an editor review
+window. A healthy harness lifecycle integration may track the changed paths and flush the affected
+collection at the next settled boundary. If that integration is absent, disabled, untrusted,
+interrupted, or fails, invoke qmd directly after the review window settles.
+
 > ⚠️ Do **not** use the task-memory-bank `memory_bank.py reindex` for knowledge/learning
 > collections. That script is scoped to the `mb-*` task collections only — it does **not** cover
 > a product's `<product>-knowledge` / `<product>-learning` collections. Reindex those with a
-> **collection-scoped qmd call**
-> (target the knowledge collection you just wrote to), or an all-collections reindex. Confirm the
-> flag spelling via /qmd.
+> **collection-scoped qmd call** targeting the collection you just wrote to. Confirm the flag
+> spelling via /qmd.
 
 After reindexing, verify the file is retrievable by querying scoped to the knowledge collection
 (via query-kb / qmd) before considering the promotion complete.

@@ -22,11 +22,15 @@ If a slash/menu entry is available in the active Codex surface, it is fine to us
 - Keep memory-bank edits separate from implementation edits when the user needs a clean review window.
 - Reindex only after memory-bank writes are settled. The adapter's trusted lifecycle hooks normally handle this. If hooks are unavailable, use `$memory-reindex`: run one `qmd update`, then request one-shot approval for each exact `qmd embed -c <collection>` command.
 
+## Knowledge File Discipline
+
+- Before every external knowledge or learning write, invoke and follow `$knowledge-files`. The Codex adapter adds a mandatory `## Codex Write Permissions` section to the installed skill; do not write until its preflight succeeds or `/status` confirms the exact launch-scoped root required by the write.
+
 ## Codex Surface Notes
 
 These instructions assume Codex can read local skills from `~/.agents/skills`. Avoid depending on product-specific desktop UI behavior in the skill workflow.
 
 - For non-CLI surfaces, confirm the active surface's current local-file, writable-root, and review behavior before relying on external memory-bank writes.
 - If a surface cannot review external memory-bank diffs directly, keep those memory edits in a separate phase and report the files changed explicitly.
-- Writable roots grant filesystem access, not Metal device access. Do not respond to model-backed qmd CLI failures by selecting `danger-full-access` or allowing broad qmd, Python, or shell command prefixes.
+- Codex sandbox write paths, represented by `writable_roots` or `workspace_roots` in configuration, grant filesystem access, not Metal device access. Do not respond to model-backed qmd CLI failures by selecting `danger-full-access` or allowing broad qmd, Python, or shell command prefixes.
 <!-- codex-agent-skills -->

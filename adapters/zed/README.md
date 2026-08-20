@@ -45,7 +45,7 @@ phase-turn guidance in `~/.codex/AGENTS.md`. It does not modify
 
 External memory-bank and knowledge paths still require Codex writable-root
 setup. Use the checker installed by `scripts/install_codex.py`; prefer
-launch-scoped `--add-dir` grants, or explicitly backfill persistent config and
+launch-scoped `--add-dir` grants, or explicitly add roots to persistent config and
 restart before writing. The permission helper changes settings only. Content
 writes must still use `apply_patch` so ZedCodex can collect their diff and
 revert snapshots.

@@ -1,16 +1,13 @@
-#!/usr/bin/env python3
-"""Check or backfill Codex writable roots for memory workflows."""
+"""Analyze and update persistent Codex sandbox access configuration."""
 
 from __future__ import annotations
 
-import argparse
 import dataclasses
 import datetime as dt
 import json
 import os
 import re
 import shutil
-import sys
 import tempfile
 from pathlib import Path
 
@@ -20,151 +17,208 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
     tomllib = None
 
 
-EXIT_MISSING = 1
-EXIT_UNSUPPORTED = 2
 _PROBE_KEY = "__agent_skills_table_probe__"
 
 
-class ConfigError(ValueError):
-    """The config cannot be checked or changed without guessing."""
+class CodexSandboxConfigError(ValueError):
+    """Codex sandbox config cannot be checked or changed without guessing."""
 
 
 @dataclasses.dataclass(frozen=True)
-class ConfigState:
+class CodexSandboxConfigState:
+    """Configured and missing paths under one supported Codex config model."""
+
     model: str
-    configured_roots: tuple[str, ...]
-    missing_roots: tuple[str, ...]
+    configured_paths: tuple[str, ...]
+    missing_paths: tuple[str, ...]
     profile_name: str | None = None
 
 
 def normalize_path(value: str | Path) -> str:
-    return str(Path(value).expanduser().resolve(strict=False))
+    raw = os.fspath(value)
+    if not raw.strip():
+        raise CodexSandboxConfigError(
+            "Path values must not be empty or whitespace-only"
+        )
+    return str(Path(raw).expanduser().resolve(strict=False))
 
 
-def default_config_path(environ: dict[str, str] | os._Environ[str] = os.environ) -> Path:
+def default_config_path(
+    environ: dict[str, str] | os._Environ[str] = os.environ,
+) -> Path:
     user_home = Path(environ.get("HOME", Path.home()))
     codex_home = Path(environ.get("CODEX_HOME", user_home / ".codex"))
     return Path(normalize_path(codex_home)) / "config.toml"
 
 
-def required_roots(
-    memory_root: str | Path,
-    knowledge_roots: list[str] | None = None,
+def required_sandbox_paths(
+    memory_path: str | Path | None = None,
+    knowledge_paths: list[str] | None = None,
     environ: dict[str, str] | os._Environ[str] = os.environ,
+    *,
+    include_qmd_state: bool | None = None,
 ) -> tuple[str, ...]:
+    """Return exact paths needed for one Codex sandbox operation.
+
+    Memory operations include qmd state by default. Existing knowledge
+    operations omit it; pre-registration callers opt in explicitly.
+    """
     user_home = Path(environ.get("HOME", Path.home()))
     cache_home = Path(environ.get("XDG_CACHE_HOME", user_home / ".cache"))
     config_home = Path(environ.get("XDG_CONFIG_HOME", user_home / ".config"))
-    candidates = [
-        memory_root,
-        *(knowledge_roots or []),
-        cache_home / "qmd",
-        config_home / "qmd",
-    ]
-    roots: list[str] = []
+    if include_qmd_state is None:
+        include_qmd_state = memory_path is not None
+    candidates: list[str | Path] = []
+    if memory_path is not None:
+        candidates.append(memory_path)
+    candidates.extend(knowledge_paths or [])
+    if include_qmd_state:
+        candidates.extend((cache_home / "qmd", config_home / "qmd"))
+    paths: list[str] = []
     for candidate in candidates:
         normalized = normalize_path(candidate)
-        if normalized not in roots:
-            roots.append(normalized)
-    return tuple(roots)
+        if normalized not in paths:
+            paths.append(normalized)
+    return tuple(paths)
 
 
 def _parse_toml(text: str, path: Path) -> dict:
     if tomllib is None:
-        raise ConfigError("Python 3.11+ is required to parse Codex config.toml")
+        raise CodexSandboxConfigError(
+            "Python 3.11+ is required to parse Codex config.toml"
+        )
     try:
         return tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
-        raise ConfigError(f"Malformed Codex config {path}: {exc}") from exc
+        raise CodexSandboxConfigError(
+            f"Malformed Codex config {path}: {exc}"
+        ) from exc
 
 
-def _normalized_enabled_roots(values: dict) -> tuple[str, ...]:
-    roots: list[str] = []
+def _normalized_enabled_paths(values: dict) -> tuple[str, ...]:
+    paths: list[str] = []
     for value, enabled in values.items():
         if not isinstance(value, str) or not isinstance(enabled, bool):
-            raise ConfigError("Permission-profile workspace_roots must map paths to booleans")
+            raise CodexSandboxConfigError(
+                "Permission-profile workspace_roots must map paths to booleans"
+            )
         if enabled:
             normalized = normalize_path(value)
-            if normalized not in roots:
-                roots.append(normalized)
-    return tuple(roots)
+            if normalized not in paths:
+                paths.append(normalized)
+    return tuple(paths)
 
 
-def analyze_config(data: dict, required: tuple[str, ...]) -> ConfigState:
+def _missing_required_paths(
+    configured: tuple[str, ...],
+    required: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return required paths not covered by a configured ancestor."""
+    configured_paths = tuple(Path(path) for path in configured)
+    return tuple(
+        path
+        for path in required
+        if not any(Path(path).is_relative_to(grant) for grant in configured_paths)
+    )
+
+
+def analyze_sandbox_config(
+    data: dict,
+    required: tuple[str, ...],
+) -> CodexSandboxConfigState:
+    """Validate one Codex config model and calculate missing sandbox paths."""
     if "profile" in data:
-        raise ConfigError(
+        raise CodexSandboxConfigError(
             "A selected external config profile may override permission settings; "
             "run this helper against that profile file explicitly"
         )
     has_profiles = "default_permissions" in data or "permissions" in data
     has_legacy = "sandbox_mode" in data or "sandbox_workspace_write" in data
     if has_profiles and has_legacy:
-        raise ConfigError(
+        raise CodexSandboxConfigError(
             "Codex config mixes permission profiles with legacy sandbox settings; "
-            "choose one model before backfilling roots"
+            "choose one model before adding sandbox paths"
         )
 
     if has_profiles:
         selected = data.get("default_permissions")
         permissions = data.get("permissions")
         if not isinstance(selected, str):
-            raise ConfigError(
-                "Permission-profile config requires a string default_permissions value"
+            raise CodexSandboxConfigError(
+                "Permission-profile config requires a string "
+                "default_permissions value"
             )
         if selected.startswith(":"):
-            raise ConfigError(
-                f"Built-in permission profile {selected!r} cannot be extended in place; "
-                "select a custom profile first"
+            raise CodexSandboxConfigError(
+                f"Built-in permission profile {selected!r} cannot be extended "
+                "in place; select a custom profile first"
             )
         if not isinstance(permissions, dict):
-            raise ConfigError(
-                "Permission-profile config requires default_permissions and [permissions]"
+            raise CodexSandboxConfigError(
+                "Permission-profile config requires default_permissions and "
+                "[permissions]"
             )
         profile = permissions.get(selected)
         if not isinstance(profile, dict):
-            raise ConfigError(
-                f"Selected permission profile {selected!r} is not defined in this config"
+            raise CodexSandboxConfigError(
+                f"Selected permission profile {selected!r} is not defined in "
+                "this config"
             )
         workspace_roots = profile.get("workspace_roots", {})
         if not isinstance(workspace_roots, dict):
-            raise ConfigError(
+            raise CodexSandboxConfigError(
                 f"permissions.{selected}.workspace_roots must be a TOML table"
             )
-        configured = _normalized_enabled_roots(workspace_roots)
-        missing = tuple(root for root in required if root not in configured)
-        return ConfigState("profile", configured, missing, selected)
+        configured = _normalized_enabled_paths(workspace_roots)
+        missing = _missing_required_paths(configured, required)
+        return CodexSandboxConfigState(
+            "profile",
+            configured,
+            missing,
+            selected,
+        )
 
     sandbox_mode = data.get("sandbox_mode")
     if sandbox_mode not in (None, "workspace-write"):
-        raise ConfigError(
+        raise CodexSandboxConfigError(
             f"sandbox_mode is {sandbox_mode!r}; select workspace-write or use "
             "launch-scoped --add-dir grants"
         )
     sandbox = data.get("sandbox_workspace_write", {})
     if not isinstance(sandbox, dict):
-        raise ConfigError("sandbox_workspace_write must be a TOML table")
+        raise CodexSandboxConfigError(
+            "sandbox_workspace_write must be a TOML table"
+        )
     writable_roots = sandbox.get("writable_roots", [])
     if not isinstance(writable_roots, list) or not all(
-        isinstance(root, str) for root in writable_roots
+        isinstance(path, str) for path in writable_roots
     ):
-        raise ConfigError("sandbox_workspace_write.writable_roots must be an array of paths")
+        raise CodexSandboxConfigError(
+            "sandbox_workspace_write.writable_roots must be an array of paths"
+        )
     configured_list: list[str] = []
-    for root in writable_roots:
-        normalized = normalize_path(root)
+    for path in writable_roots:
+        normalized = normalize_path(path)
         if normalized not in configured_list:
             configured_list.append(normalized)
     configured = tuple(configured_list)
-    missing = tuple(root for root in required if root not in configured)
-    return ConfigState("legacy", configured, missing)
+    missing = _missing_required_paths(configured, required)
+    return CodexSandboxConfigState("legacy", configured, missing)
 
 
-def load_state(path: Path, required: tuple[str, ...]) -> tuple[str, dict, ConfigState]:
+def load_sandbox_config_state(
+    path: Path,
+    required: tuple[str, ...],
+) -> tuple[str, dict, CodexSandboxConfigState]:
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     data = _parse_toml(text, path)
-    return text, data, analyze_config(data, required)
+    return text, data, analyze_sandbox_config(data, required)
 
 
-def _find_probe_path(value: object, path: tuple[str, ...] = ()) -> tuple[str, ...] | None:
+def _find_probe_path(
+    value: object,
+    path: tuple[str, ...] = (),
+) -> tuple[str, ...] | None:
     if not isinstance(value, dict):
         return None
     if value.get(_PROBE_KEY) is True:
@@ -177,12 +231,18 @@ def _find_probe_path(value: object, path: tuple[str, ...] = ()) -> tuple[str, ..
 
 
 def _table_headers(text: str) -> list[tuple[tuple[str, ...], int, int]]:
+    """Locate TOML table headers and parse their exact dotted or quoted paths."""
     headers: list[tuple[tuple[str, ...], int, int]] = []
     offset = 0
     for line in text.splitlines(keepends=True):
+        # A candidate table header starts with optional whitespace and one `[`.
+        # Matches: "[sandbox_workspace_write]" and '  [permissions."main"]'
+        # Does not match: "[[servers]]" or 'sandbox_mode = "workspace-write"'
         if re.match(r"^\s*\[(?!\[)", line):
             try:
-                parsed = tomllib.loads(f"{line.rstrip()}\n{_PROBE_KEY} = true\n")
+                parsed = tomllib.loads(
+                    f"{line.rstrip()}\n{_PROBE_KEY} = true\n"
+                )
             except tomllib.TOMLDecodeError:
                 parsed = {}
             path = _find_probe_path(parsed)
@@ -219,6 +279,7 @@ def _insert_in_table(text: str, span: tuple[int, int], body: str) -> str:
 
 
 def _find_array_bounds(text: str, start: int) -> tuple[int, int]:
+    """Find one complete TOML array while ignoring brackets in strings/comments."""
     open_index = -1
     depth = 0
     state = "normal"
@@ -274,10 +335,13 @@ def _find_array_bounds(text: str, start: int) -> tuple[int, int]:
                 if depth == 0:
                     return open_index, index
         index += 1
-    raise ConfigError("Could not locate the complete writable_roots array")
+    raise CodexSandboxConfigError(
+        "Could not locate the complete writable_roots array"
+    )
 
 
 def _comment_start(line: str) -> int | None:
+    """Return the first TOML comment marker outside basic/literal strings."""
     state = "normal"
     escaped = False
     for index, char in enumerate(line):
@@ -301,9 +365,14 @@ def _comment_start(line: str) -> int | None:
 
 
 def _assignment_value_start(
-    text: str, span: tuple[int, int], key: str
+    text: str,
+    span: tuple[int, int],
+    key: str,
 ) -> int | None:
     start, end = span
+    # Find an assignment to the exact key at the beginning of a table line.
+    # Matches: "writable_roots = [" and "  writable_roots=["
+    # Does not match: "# writable_roots = [" or "other_writable_roots = ["
     match = re.search(
         rf"(?m)^[ \t]*{re.escape(key)}[ \t]*=",
         text[start:end],
@@ -313,10 +382,10 @@ def _assignment_value_start(
     return start + match.end()
 
 
-def _merge_legacy_roots(text: str, roots: tuple[str, ...]) -> str:
+def _merge_legacy_paths(text: str, paths: tuple[str, ...]) -> str:
     target = ("sandbox_workspace_write",)
     span = _table_span(text, target)
-    rendered = "\n".join(f"  {_toml_quote(root)}," for root in roots)
+    rendered = "\n".join(f"  {_toml_quote(path)}," for path in paths)
     if span is None:
         return _append_table(
             text,
@@ -336,13 +405,14 @@ def _merge_legacy_roots(text: str, roots: tuple[str, ...]) -> str:
     if "\n" not in text[open_index:close_index]:
         existing = text[open_index + 1 : close_index].strip()
         separator = ", " if existing else ""
-        addition = separator + ", ".join(_toml_quote(root) for root in roots)
+        addition = separator + ", ".join(_toml_quote(path) for path in paths)
         return text[:close_index] + addition + text[close_index:]
 
     close_line_start = text.rfind("\n", open_index, close_index) + 1
     if text[close_line_start:close_index].strip():
-        raise ConfigError(
-            "Unsupported writable_roots formatting; put the closing ] on its own line"
+        raise CodexSandboxConfigError(
+            "Unsupported writable_roots formatting; put the closing ] on its "
+            "own line"
         )
     previous_line_end = close_line_start - 1
     previous_line_start = text.rfind("\n", open_index, previous_line_end) + 1
@@ -357,8 +427,13 @@ def _merge_legacy_roots(text: str, roots: tuple[str, ...]) -> str:
     if value_end > open_index and text[value_end - 1] != ",":
         text = text[:value_end] + "," + text[value_end:]
         close_line_start += 1
-    element_indent = re.match(r"[ \t]*", text[close_line_start:]).group(0) + "  "
-    addition = "".join(f"{element_indent}{_toml_quote(root)},\n" for root in roots)
+    closing_line = text[close_line_start:]
+    indent_length = len(closing_line) - len(closing_line.lstrip(" \t"))
+    closing_indent = closing_line[:indent_length]
+    element_indent = closing_indent + "  "
+    addition = "".join(
+        f"{element_indent}{_toml_quote(path)},\n" for path in paths
+    )
     return text[:close_line_start] + addition + text[close_line_start:]
 
 
@@ -369,59 +444,73 @@ def _insert_top_level_workspace_mode(text: str) -> str:
     after = text[position:]
     separator = "\n" if before else ""
     trailing = "\n\n" if after else "\n"
-    return f"{before}{separator}sandbox_mode = \"workspace-write\"{trailing}{after}"
+    return (
+        f'{before}{separator}sandbox_mode = "workspace-write"'
+        f"{trailing}{after}"
+    )
 
 
 def _profile_header(profile_name: str) -> str:
     return f"permissions.{_toml_quote(profile_name)}.workspace_roots"
 
 
-def _merge_profile_roots(
-    text: str, profile_name: str, roots: tuple[str, ...]
+def _merge_profile_paths(
+    text: str,
+    profile_name: str,
+    paths: tuple[str, ...],
 ) -> str:
     target = ("permissions", profile_name, "workspace_roots")
     span = _table_span(text, target)
-    body = "\n".join(f"{_toml_quote(root)} = true" for root in roots)
+    body = "\n".join(f"{_toml_quote(path)} = true" for path in paths)
     if span is None:
         return _append_table(text, _profile_header(profile_name), body)
 
-    # An exact false entry can be safely enabled in place. Semantically equivalent
-    # aliases (for example ~/x versus /home/u/x) are retained and an absolute key is
-    # added instead.
     start, end = span
     section = text[start:end]
     remaining: list[str] = []
-    for root in roots:
-        quoted = re.escape(_toml_quote(root))
+    for path in paths:
+        quoted = re.escape(_toml_quote(path))
+        # Match one exact quoted path assigned false, preserving whitespace and
+        # an optional comment around the value replacement.
+        # Matches: '"/tmp/knowledge" = false # enable after review'
+        # Does not match: '"/tmp/knowledge" = true' or '"~/knowledge" = false'
         match = re.search(
-            rf"(?m)^([ \t]*{quoted}[ \t]*=[ \t]*)(false)([ \t]*(?:#.*)?)$",
+            rf"(?m)^([ \t]*{quoted}[ \t]*=[ \t]*)(false)"
+            rf"([ \t]*(?:#.*)?)$",
             section,
         )
         if match:
-            section = section[: match.start(2)] + "true" + section[match.end(2) :]
+            section = (
+                section[: match.start(2)]
+                + "true"
+                + section[match.end(2) :]
+            )
         else:
-            remaining.append(root)
+            remaining.append(path)
     text = text[:start] + section + text[end:]
     if not remaining:
         return text
     span = _table_span(text, target)
-    body = "\n".join(f"{_toml_quote(root)} = true" for root in remaining)
+    body = "\n".join(f"{_toml_quote(path)} = true" for path in remaining)
     return _insert_in_table(text, span, body)
 
 
-def render_backfill(
+def render_sandbox_config_additions(
     text: str,
     data: dict,
-    state: ConfigState,
+    state: CodexSandboxConfigState,
 ) -> str:
-    if not state.missing_roots:
+    """Render missing sandbox paths while preserving unrelated TOML text."""
+    if not state.missing_paths:
         return text
     if state.model == "profile":
-        updated = _merge_profile_roots(
-            text, state.profile_name or "", state.missing_roots
+        updated = _merge_profile_paths(
+            text,
+            state.profile_name or "",
+            state.missing_paths,
         )
     else:
-        updated = _merge_legacy_roots(text, state.missing_roots)
+        updated = _merge_legacy_paths(text, state.missing_paths)
         if "sandbox_mode" not in data:
             updated = _insert_top_level_workspace_mode(updated)
     return updated
@@ -438,6 +527,7 @@ def _backup_path(path: Path) -> Path:
 
 
 def _atomic_write(path: Path, text: str) -> Path | None:
+    """Back up an existing config and atomically replace it with settled text."""
     path.parent.mkdir(parents=True, exist_ok=True)
     backup = None
     mode = None
@@ -467,71 +557,20 @@ def _atomic_write(path: Path, text: str) -> Path | None:
     return backup
 
 
-def backfill_config(path: Path, required: tuple[str, ...]) -> tuple[bool, Path | None]:
-    text, data, state = load_state(path, required)
-    if not state.missing_roots:
+def add_sandbox_paths_to_config(
+    path: Path,
+    required: tuple[str, ...],
+) -> tuple[bool, Path | None]:
+    """Add exact sandbox paths after validating input and rendered config."""
+    text, data, state = load_sandbox_config_state(path, required)
+    if not state.missing_paths:
         return False, None
-    updated = render_backfill(text, data, state)
+    updated = render_sandbox_config_additions(text, data, state)
     parsed = _parse_toml(updated, path)
-    verified = analyze_config(parsed, required)
-    if verified.missing_roots:
-        raise ConfigError(
-            "Generated config did not contain every requested writable root"
+    verified = analyze_sandbox_config(parsed, required)
+    if verified.missing_paths:
+        raise CodexSandboxConfigError(
+            "Generated config did not contain every requested sandbox path"
         )
     backup = _atomic_write(path, updated)
     return True, backup
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    for command in ("check", "backfill"):
-        subparser = subparsers.add_parser(command)
-        subparser.add_argument("--memory-root", required=True)
-        subparser.add_argument("--knowledge-root", action="append", default=[])
-        subparser.add_argument(
-            "--config",
-            help="Codex config path. Defaults to $CODEX_HOME/config.toml.",
-        )
-    return parser
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = _build_parser().parse_args(argv)
-    config_path = (
-        Path(normalize_path(args.config)) if args.config else default_config_path()
-    )
-    roots = required_roots(args.memory_root, args.knowledge_root)
-    print("Required writable roots:")
-    for root in roots:
-        print(f"  {root}")
-    print(f"Codex config: {config_path}")
-
-    try:
-        _, _, state = load_state(config_path, roots)
-        if args.command == "check":
-            if state.missing_roots:
-                print("Missing writable roots:")
-                for root in state.missing_roots:
-                    print(f"  {root}")
-                return EXIT_MISSING
-            print("Configured roots include every requested path.")
-            print("Use /status in the active Codex session to verify effective roots.")
-            return 0
-
-        changed, backup = backfill_config(config_path, roots)
-        if not changed:
-            print("No config change needed.")
-        else:
-            print("Backfilled Codex writable roots.")
-            if backup:
-                print(f"Backup: {backup}")
-            print("Restart Codex, then use /status to verify effective roots.")
-        return 0
-    except ConfigError as exc:
-        print(f"Cannot update permissions: {exc}", file=sys.stderr)
-        return EXIT_UNSUPPORTED
-
-
-if __name__ == "__main__":
-    sys.exit(main())
