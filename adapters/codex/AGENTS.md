@@ -32,5 +32,5 @@ These instructions assume Codex can read local skills from `~/.agents/skills`. A
 
 - For non-CLI surfaces, confirm the active surface's current local-file, writable-root, and review behavior before relying on external memory-bank writes.
 - If a surface cannot review external memory-bank diffs directly, keep those memory edits in a separate phase and report the files changed explicitly.
-- Writable roots grant filesystem access, not Metal device access. Do not respond to model-backed qmd CLI failures by selecting `danger-full-access` or allowing broad qmd, Python, or shell command prefixes.
+- Codex sandbox write paths, represented by `writable_roots` or `workspace_roots` in configuration, grant filesystem access, not Metal device access. Do not respond to model-backed qmd CLI failures by selecting `danger-full-access` or allowing broad qmd, Python, or shell command prefixes.
 <!-- codex-agent-skills -->

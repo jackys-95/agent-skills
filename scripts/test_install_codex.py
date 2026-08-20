@@ -6,6 +6,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -75,7 +76,7 @@ class TestInstallCodex(unittest.TestCase):
         self.assertIn("task-memory-bank/SKILL.md", wrapper)
         self.assertIn("memory.resume", wrapper)
 
-        helper_name = "codex_memory_permissions.py"
+        helper_name = "codex_sandbox_access.py"
         init_helper = target / "memory-init-project" / "scripts" / helper_name
         doctor_helper = target / "memory-doctor" / "scripts" / helper_name
         knowledge_helper = target / "knowledge-files" / "scripts" / helper_name
@@ -83,6 +84,31 @@ class TestInstallCodex(unittest.TestCase):
         self.assertTrue(doctor_helper.exists())
         self.assertTrue(knowledge_helper.exists())
         self.assertFalse((target / "memory-resume" / "scripts" / helper_name).exists())
+        module_names = ("codex_sandbox_config.py", "knowledge_base_catalog.py")
+        for module_name in module_names:
+            for skill in (
+                "memory-init-project",
+                "memory-doctor",
+                "knowledge-files",
+            ):
+                self.assertTrue(
+                    (target / skill / "scripts" / module_name).exists()
+                )
+            self.assertFalse(
+                (target / "memory-resume" / "scripts" / module_name).exists()
+            )
+        installed_helper = subprocess.run(
+            [sys.executable, str(init_helper), "--help"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertEqual(
+            installed_helper.returncode,
+            0,
+            installed_helper.stderr,
+        )
 
         init_wrapper = (target / "memory-init-project" / "SKILL.md").read_text(
             encoding="utf-8"
@@ -90,9 +116,9 @@ class TestInstallCodex(unittest.TestCase):
         doctor_wrapper = (target / "memory-doctor" / "SKILL.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("codex_memory_permissions.py check", init_wrapper)
+        self.assertIn("codex_sandbox_access.py check", init_wrapper)
         self.assertIn("explicit `add-roots`", init_wrapper)
-        self.assertIn("codex_memory_permissions.py check", doctor_wrapper)
+        self.assertIn("codex_sandbox_access.py check", doctor_wrapper)
         reindex_wrapper = (target / "memory-reindex" / "SKILL.md").read_text(
             encoding="utf-8"
         )
@@ -224,7 +250,7 @@ class TestInstallCodex(unittest.TestCase):
         self.assertIn("lexical `qmd search`", agents_text)
         self.assertIn("## Codex Write Permissions", agents_text)
         self.assertIn("do not write until its preflight succeeds", agents_text)
-        self.assertNotIn("codex_memory_permissions.py", agents_text)
+        self.assertNotIn("codex_sandbox_access.py", agents_text)
         self.assertIn("Do not respond", agents_text)
         self.assertIn("broad qmd, Python, or shell command prefixes", agents_text)
         self.assertNotIn("<!-- zed-codex-adapter -->", agents_text)
@@ -315,7 +341,7 @@ class TestInstallCodex(unittest.TestCase):
             rendered,
         )
         self.assertIn(
-            "skill-local knowledge permission preflight was still installed",
+            "skill-local sandbox access preflight was still installed",
             rendered,
         )
         self.assertIn(
@@ -354,7 +380,7 @@ class TestInstallCodex(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertNotIn("## Codex Write Permissions", canonical_skill)
-        self.assertNotIn("codex_memory_permissions.py", canonical_skill)
+        self.assertNotIn("codex_sandbox_access.py", canonical_skill)
 
     def test_new_collection_is_preflighted_and_registered_before_content(self) -> None:
         skill = normalized_prose(

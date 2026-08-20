@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for Codex memory-workflow permission configuration."""
+"""Tests for Codex sandbox access coordination."""
 
 from __future__ import annotations
 
@@ -14,14 +14,14 @@ from unittest import mock
 
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
-import codex_memory_permissions as permissions  # noqa: E402
+import codex_sandbox_access as access  # noqa: E402
 
 
 def dedent(text: str) -> str:
     return textwrap.dedent(text).lstrip("\n")
 
 
-class TestCodexMemoryPermissions(unittest.TestCase):
+class TestCodexSandboxAccess(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -34,7 +34,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             "XDG_CACHE_HOME": str(self.tmp / "cache"),
             "XDG_CONFIG_HOME": str(self.tmp / "config"),
         }
-        self.roots = permissions.required_roots(
+        self.roots = access.required_sandbox_paths(
             self.memory, [str(self.knowledge)], self.environ
         )
 
@@ -67,16 +67,16 @@ class TestCodexMemoryPermissions(unittest.TestCase):
     def test_normalize_path_rejects_empty_and_whitespace_only_values(self) -> None:
         for value in ("", " ", "\t\n"):
             with self.subTest(value=value):
-                with self.assertRaises(permissions.ConfigError) as raised:
-                    permissions.normalize_path(value)
+                with self.assertRaises(access.CodexSandboxConfigError) as raised:
+                    access.normalize_path(value)
 
                 self.assertIn(
                     "must not be empty or whitespace-only",
                     str(raised.exception),
                 )
 
-    def test_required_roots_use_xdg_paths_and_deduplicate(self) -> None:
-        roots = permissions.required_roots(
+    def test_required_sandbox_paths_use_xdg_paths_and_deduplicate(self) -> None:
+        roots = access.required_sandbox_paths(
             self.memory,
             [str(self.memory / ".." / "memory")],
             self.environ,
@@ -91,26 +91,26 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             ),
         )
 
-    def test_existing_knowledge_roots_exclude_qmd_state(self) -> None:
-        roots = permissions.required_roots(
-            knowledge_roots=[str(self.knowledge)],
+    def test_existing_knowledge_paths_exclude_qmd_state(self) -> None:
+        paths = access.required_sandbox_paths(
+            knowledge_paths=[str(self.knowledge)],
             environ=self.environ,
         )
 
         self.assertEqual(
-            roots,
+            paths,
             (str(self.knowledge.resolve()),),
         )
 
-    def test_collection_registration_roots_include_qmd_state(self) -> None:
-        roots = permissions.required_roots(
-            knowledge_roots=[str(self.knowledge)],
+    def test_collection_registration_paths_include_qmd_state(self) -> None:
+        paths = access.required_sandbox_paths(
+            knowledge_paths=[str(self.knowledge)],
             environ=self.environ,
             include_qmd_state=True,
         )
 
         self.assertEqual(
-            roots,
+            paths,
             (
                 str(self.knowledge.resolve()),
                 str((self.tmp / "cache" / "qmd").resolve()),
@@ -121,10 +121,10 @@ class TestCodexMemoryPermissions(unittest.TestCase):
     def test_default_paths_honor_supplied_home(self) -> None:
         environ = {"HOME": str(self.tmp / "home")}
 
-        roots = permissions.required_roots(self.memory, environ=environ)
+        roots = access.required_sandbox_paths(self.memory, environ=environ)
 
         self.assertEqual(
-            permissions.default_config_path(environ),
+            access.default_config_path(environ),
             (self.tmp / "home" / ".codex" / "config.toml").resolve(),
         )
         self.assertIn(
@@ -134,7 +134,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             str((self.tmp / "home" / ".config" / "qmd").resolve()), roots
         )
 
-    def test_resolve_knowledge_collections_joins_registry_to_qmd_paths(self) -> None:
+    def test_resolve_knowledge_base_collections_joins_registry_to_qmd_paths(self) -> None:
         self.write_registry(
             """\
             collections:
@@ -149,14 +149,14 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         learning_root = self.tmp / "Demo" / "learning"
 
         with mock.patch.object(
-            permissions.subprocess,
+            access.knowledge_base_catalog.subprocess,
             "run",
             side_effect=[
                 self.qmd_show_result("demo-knowledge", knowledge_root),
                 self.qmd_show_result("demo-learning", learning_root),
             ],
         ) as run:
-            resolved = permissions.resolve_knowledge_collections(
+            resolved = access.resolve_knowledge_base_collections(
                 ["demo-knowledge", "demo-learning"],
                 environ=self.environ,
             )
@@ -164,13 +164,13 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         self.assertEqual(
             resolved,
             (
-                permissions.ResolvedCollection(
+                access.ResolvedKnowledgeBaseCollection(
                     "demo-knowledge",
                     "knowledge",
                     "demo",
                     str(knowledge_root.resolve()),
                 ),
-                permissions.ResolvedCollection(
+                access.ResolvedKnowledgeBaseCollection(
                     "demo-learning",
                     "learning",
                     "default",
@@ -186,24 +186,27 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             ],
         )
 
-    def test_resolve_knowledge_collections_rejects_unknown_registry_entry(self) -> None:
+    def test_resolve_knowledge_base_collections_rejects_unknown_registry_entry(self) -> None:
         self.write_registry("collections: {}\n")
 
-        with mock.patch.object(permissions.subprocess, "run") as run:
+        with mock.patch.object(
+            access.knowledge_base_catalog.subprocess,
+            "run",
+        ) as run:
             # Error-text regex: matches "missing-knowledge is not classified in
             # the registry"; does not match "missing-knowledge is not in qmd".
             with self.assertRaisesRegex(
-                permissions.ConfigError,
+                access.KnowledgeBaseCatalogError,
                 "not classified in",
             ):
-                permissions.resolve_knowledge_collections(
+                access.resolve_knowledge_base_collections(
                     ["missing-knowledge"],
                     environ=self.environ,
                 )
 
         run.assert_not_called()
 
-    def test_resolve_knowledge_collections_rejects_task_classification(self) -> None:
+    def test_resolve_knowledge_base_collections_rejects_task_classification(self) -> None:
         self.write_registry(
             """\
             collections:
@@ -213,21 +216,24 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             """
         )
 
-        with mock.patch.object(permissions.subprocess, "run") as run:
+        with mock.patch.object(
+            access.knowledge_base_catalog.subprocess,
+            "run",
+        ) as run:
             # Error-text regex: matches "task-notes must be knowledge or
             # learning"; does not match "task-notes contains tasks".
             with self.assertRaisesRegex(
-                permissions.ConfigError,
+                access.KnowledgeBaseCatalogError,
                 "must be knowledge or learning",
             ):
-                permissions.resolve_knowledge_collections(
+                access.resolve_knowledge_base_collections(
                     ["task-notes"],
                     environ=self.environ,
                 )
 
         run.assert_not_called()
 
-    def test_resolve_knowledge_collections_reports_qmd_lookup_failure(self) -> None:
+    def test_resolve_knowledge_base_collections_reports_qmd_lookup_failure(self) -> None:
         self.write_registry(
             """\
             collections:
@@ -238,7 +244,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         )
 
         with mock.patch.object(
-            permissions.subprocess,
+            access.knowledge_base_catalog.subprocess,
             "run",
             return_value=self.qmd_show_result(
                 "demo-knowledge",
@@ -249,15 +255,15 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             # 'demo-knowledge'"; it does not match the same error for
             # "demo-learning".
             with self.assertRaisesRegex(
-                permissions.ConfigError,
+                access.KnowledgeBaseCatalogError,
                 "qmd cannot resolve collection 'demo-knowledge'",
             ):
-                permissions.resolve_knowledge_collections(
+                access.resolve_knowledge_base_collections(
                     ["demo-knowledge"],
                     environ=self.environ,
                 )
 
-    def test_resolve_knowledge_collections_rejects_missing_qmd_path(self) -> None:
+    def test_resolve_knowledge_base_collections_rejects_missing_qmd_path(self) -> None:
         self.write_registry(
             """\
             collections:
@@ -268,7 +274,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         )
 
         with mock.patch.object(
-            permissions.subprocess,
+            access.knowledge_base_catalog.subprocess,
             "run",
             return_value=mock.Mock(
                 returncode=0,
@@ -279,15 +285,15 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             # Error-text regex: matches "qmd returned 0 Path fields"; it does
             # not match "qmd returned 1 Path field".
             with self.assertRaisesRegex(
-                permissions.ConfigError,
+                access.KnowledgeBaseCatalogError,
                 "returned 0 Path fields",
             ):
-                permissions.resolve_knowledge_collections(
+                access.resolve_knowledge_base_collections(
                     ["demo-knowledge"],
                     environ=self.environ,
                 )
 
-    def test_resolve_knowledge_collections_rejects_whitespace_only_qmd_path(
+    def test_resolve_knowledge_base_collections_rejects_whitespace_only_qmd_path(
         self,
     ) -> None:
         self.write_registry(
@@ -302,7 +308,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         for path_line in ("  Path:     ", "Path:\t\t"):
             with self.subTest(path_line=path_line):
                 with mock.patch.object(
-                    permissions.subprocess,
+                    access.knowledge_base_catalog.subprocess,
                     "run",
                     return_value=mock.Mock(
                         returncode=0,
@@ -313,10 +319,10 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                     # Error-text regex: matches "qmd returned 0 Path fields";
                     # it does not match "qmd returned a blank Path field".
                     with self.assertRaisesRegex(
-                        permissions.ConfigError,
+                        access.KnowledgeBaseCatalogError,
                         "returned 0 Path fields",
                     ):
-                        permissions.resolve_knowledge_collections(
+                        access.resolve_knowledge_base_collections(
                             ["demo-knowledge"],
                             environ=self.environ,
                         )
@@ -340,29 +346,29 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         learning_root = self.tmp / "Demo" / "learning"
 
         with mock.patch.object(
-            permissions.subprocess,
+            access.knowledge_base_catalog.subprocess,
             "run",
             side_effect=[
                 self.qmd_show_result("demo-knowledge", knowledge_root),
                 self.qmd_show_result("demo-learning", learning_root),
             ],
         ) as run:
-            pair = permissions.resolve_knowledge_learning_pair(
+            pair = access.resolve_knowledge_learning_pair(
                 "demo-learning",
                 environ=self.environ,
             )
 
         self.assertEqual(
             pair,
-            permissions.CollectionPair(
+            access.KnowledgeLearningPair(
                 domain="demo",
-                knowledge=permissions.ResolvedCollection(
+                knowledge=access.ResolvedKnowledgeBaseCollection(
                     "demo-knowledge",
                     "knowledge",
                     "demo",
                     str(knowledge_root.resolve()),
                 ),
-                learning=permissions.ResolvedCollection(
+                learning=access.ResolvedKnowledgeBaseCollection(
                     "demo-learning",
                     "learning",
                     "demo",
@@ -389,9 +395,12 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             """
         )
 
-        with mock.patch.object(permissions.subprocess, "run") as run:
-            with self.assertRaises(permissions.ConfigError) as raised:
-                permissions.resolve_knowledge_learning_pair(
+        with mock.patch.object(
+            access.knowledge_base_catalog.subprocess,
+            "run",
+        ) as run:
+            with self.assertRaises(access.KnowledgeBaseCatalogError) as raised:
+                access.resolve_knowledge_learning_pair(
                     "demo-knowledge",
                     environ=self.environ,
                 )
@@ -412,9 +421,12 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             """
         )
 
-        with mock.patch.object(permissions.subprocess, "run") as run:
-            with self.assertRaises(permissions.ConfigError) as raised:
-                permissions.resolve_knowledge_learning_pair(
+        with mock.patch.object(
+            access.knowledge_base_catalog.subprocess,
+            "run",
+        ) as run:
+            with self.assertRaises(access.KnowledgeBaseCatalogError) as raised:
+                access.resolve_knowledge_learning_pair(
                     "demo-knowledge",
                     environ=self.environ,
                 )
@@ -441,9 +453,12 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             """
         )
 
-        with mock.patch.object(permissions.subprocess, "run") as run:
-            with self.assertRaises(permissions.ConfigError) as raised:
-                permissions.resolve_knowledge_learning_pair(
+        with mock.patch.object(
+            access.knowledge_base_catalog.subprocess,
+            "run",
+        ) as run:
+            with self.assertRaises(access.KnowledgeBaseCatalogError) as raised:
+                access.resolve_knowledge_learning_pair(
                     "demo-knowledge",
                     environ=self.environ,
                 )
@@ -469,21 +484,21 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         shared_root = self.tmp / "Demo"
 
         with mock.patch.object(
-            permissions.subprocess,
+            access.knowledge_base_catalog.subprocess,
             "run",
             side_effect=[
                 self.qmd_show_result("demo-knowledge", shared_root),
                 self.qmd_show_result("demo-learning", shared_root),
             ],
         ):
-            with self.assertRaises(permissions.ConfigError) as raised:
-                permissions.resolve_knowledge_learning_pair(
+            with self.assertRaises(access.KnowledgeBaseCatalogError) as raised:
+                access.resolve_knowledge_learning_pair(
                     "demo-knowledge",
                     environ=self.environ,
                 )
 
         self.assertIn(
-            "must resolve to distinct qmd roots",
+            "must resolve to distinct qmd paths",
             str(raised.exception),
         )
 
@@ -504,11 +519,11 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 stderr = io.StringIO()
                 with mock.patch.dict("os.environ", self.environ, clear=True):
                     with mock.patch.object(
-                        permissions.subprocess,
+                        access.knowledge_base_catalog.subprocess,
                         "run",
                     ) as run:
                         with contextlib.redirect_stderr(stderr):
-                            result = permissions.main(
+                            result = access.main(
                                 [
                                     "plan-new-collection",
                                     "--collection",
@@ -525,7 +540,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                                 ]
                             )
 
-                self.assertEqual(result, permissions.EXIT_UNSUPPORTED)
+                self.assertEqual(result, access.EXIT_UNSUPPORTED)
                 self.assertIn(
                     "must not be empty or whitespace-only",
                     stderr.getvalue(),
@@ -550,7 +565,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 return_value=self.qmd_show_result(
                     "demo-knowledge",
@@ -558,7 +573,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ),
             ) as run:
                 with contextlib.redirect_stdout(output):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "plan-new-collection",
                             "--collection",
@@ -576,9 +591,12 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                     )
 
         rendered = output.getvalue()
-        self.assertEqual(result, permissions.EXIT_MISSING)
+        self.assertEqual(result, access.EXIT_MISSING)
         self.assertIn("Planned new collection", rendered)
-        self.assertIn("Roots required before registration", rendered)
+        self.assertIn(
+            "Sandbox write paths required before registration",
+            rendered,
+        )
         self.assertIn("Session-only restart", rendered)
         self.assertIn(f"codex --add-dir {self.knowledge.resolve()}", rendered)
         self.assertIn(
@@ -602,8 +620,8 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         run.assert_called_once_with(
             ["qmd", "collection", "show", "demo-knowledge"],
             check=False,
-            stdout=permissions.subprocess.PIPE,
-            stderr=permissions.subprocess.PIPE,
+            stdout=access.knowledge_base_catalog.subprocess.PIPE,
+            stderr=access.knowledge_base_catalog.subprocess.PIPE,
             text=True,
             env=self.environ,
         )
@@ -611,8 +629,8 @@ class TestCodexMemoryPermissions(unittest.TestCase):
     def test_plan_new_collection_skips_setup_when_registration_roots_are_covered(
         self,
     ) -> None:
-        roots = permissions.required_roots(
-            knowledge_roots=[str(self.knowledge)],
+        roots = access.required_sandbox_paths(
+            knowledge_paths=[str(self.knowledge)],
             environ=self.environ,
             include_qmd_state=True,
         )
@@ -630,7 +648,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 return_value=self.qmd_show_result(
                     "demo-knowledge",
@@ -638,7 +656,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ),
             ):
                 with contextlib.redirect_stdout(output):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "plan-new-collection",
                             "--collection",
@@ -657,7 +675,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertIn(
-            "Persistent config covers every pre-registration root",
+            "Persistent config covers every pre-registration path",
             output.getvalue(),
         )
         self.assertNotIn("Persistent setup after explicit approval", output.getvalue())
@@ -683,7 +701,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 side_effect=[
                     self.qmd_show_result("demo-knowledge", returncode=1),
@@ -691,7 +709,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ],
             ):
                 with contextlib.redirect_stdout(output):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "plan-new-collection",
                             "--collection",
@@ -712,7 +730,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         session_command = rendered.split("Session-only restart:\n  ", 1)[1].splitlines()[
             0
         ]
-        self.assertEqual(result, permissions.EXIT_MISSING)
+        self.assertEqual(result, access.EXIT_MISSING)
         self.assertIn("Resolved existing counterpart", rendered)
         self.assertIn(
             "add-roots --planned-collection demo-knowledge "
@@ -747,7 +765,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 side_effect=[
                     self.qmd_show_result("demo-knowledge", returncode=1),
@@ -755,7 +773,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ],
             ):
                 with contextlib.redirect_stdout(output):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "add-roots",
                             "--planned-collection",
@@ -781,15 +799,15 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         self.assertIn("Validated planned new collection", output.getvalue())
         self.assertIn("Validated existing counterpart", output.getvalue())
         self.assertEqual(self.registry.read_bytes(), registry_before)
-        _, _, state = permissions.load_state(
+        _, _, state = access.load_sandbox_config_state(
             self.config,
-            permissions.required_roots(
-                knowledge_roots=[str(self.knowledge), str(learning)],
+            access.required_sandbox_paths(
+                knowledge_paths=[str(self.knowledge), str(learning)],
                 environ=self.environ,
                 include_qmd_state=True,
             ),
         )
-        self.assertEqual(state.missing_roots, ())
+        self.assertEqual(state.missing_paths, ())
 
     def test_add_roots_rejects_planned_collection_registered_after_approval(
         self,
@@ -806,7 +824,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 return_value=self.qmd_show_result(
                     "demo-knowledge",
@@ -814,7 +832,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ),
             ):
                 with contextlib.redirect_stderr(stderr):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "add-roots",
                             "--planned-collection",
@@ -831,13 +849,13 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                         ]
                     )
 
-        self.assertEqual(result, permissions.EXIT_UNSUPPORTED)
+        self.assertEqual(result, access.EXIT_UNSUPPORTED)
         self.assertIn("already registered with qmd", stderr.getvalue())
         self.assertEqual(self.config.read_bytes(), before)
         self.assertEqual(list(self.config.parent.glob("config.toml.bak-*")), [])
 
     def test_add_roots_creates_legacy_workspace_config(self) -> None:
-        changed, backup = permissions.add_roots_to_config(self.config, self.roots)
+        changed, backup = access.add_sandbox_paths_to_config(self.config, self.roots)
 
         self.assertTrue(changed)
         self.assertIsNone(backup)
@@ -846,8 +864,8 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         self.assertIn("[sandbox_workspace_write]", text)
         for root in self.roots:
             self.assertIn(f'"{root}"', text)
-        _, _, state = permissions.load_state(self.config, self.roots)
-        self.assertEqual(state.missing_roots, ())
+        _, _, state = access.load_sandbox_config_state(self.config, self.roots)
+        self.assertEqual(state.missing_paths, ())
 
     def test_legacy_merge_preserves_comments_and_is_idempotent(self) -> None:
         existing = str(self.memory.resolve())
@@ -869,9 +887,9 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         )
         before = self.config.read_text(encoding="utf-8")
 
-        changed, backup = permissions.add_roots_to_config(self.config, self.roots)
+        changed, backup = access.add_sandbox_paths_to_config(self.config, self.roots)
         first = self.config.read_text(encoding="utf-8")
-        changed_again, second_backup = permissions.add_roots_to_config(
+        changed_again, second_backup = access.add_sandbox_paths_to_config(
             self.config, self.roots
         )
 
@@ -896,7 +914,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             """
         )
 
-        permissions.add_roots_to_config(self.config, self.roots)
+        access.add_sandbox_paths_to_config(self.config, self.roots)
 
         text = self.config.read_text(encoding="utf-8")
         self.assertIn('writable_roots = ["/existing", ', text)
@@ -915,15 +933,15 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             """
         )
 
-        permissions.add_roots_to_config(self.config, self.roots)
+        access.add_sandbox_paths_to_config(self.config, self.roots)
 
         text = self.config.read_text(encoding="utf-8")
         self.assertIn(f'"{self.roots[0]}" = true # enable me', text)
         for root in self.roots[1:]:
             self.assertIn(f'"{root}" = true', text)
-        _, _, state = permissions.load_state(self.config, self.roots)
+        _, _, state = access.load_sandbox_config_state(self.config, self.roots)
         self.assertEqual(state.model, "profile")
-        self.assertEqual(state.missing_roots, ())
+        self.assertEqual(state.missing_paths, ())
 
     def test_custom_profile_table_is_created_when_missing(self) -> None:
         self.write_config(
@@ -934,71 +952,10 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             """
         )
 
-        permissions.add_roots_to_config(self.config, self.roots)
+        access.add_sandbox_paths_to_config(self.config, self.roots)
 
         text = self.config.read_text(encoding="utf-8")
         self.assertIn('[permissions."memory".workspace_roots]', text)
-
-    def test_ancestor_coverage_is_path_aware_for_legacy_and_profiles(self) -> None:
-        parent = str((self.tmp / "domain").resolve())
-        required = str((self.tmp / "domain" / "knowledge").resolve())
-        sibling = str((self.tmp / "domain" / "learning").resolve())
-        cases = (
-            (
-                "legacy ancestor",
-                {
-                    "sandbox_mode": "workspace-write",
-                    "sandbox_workspace_write": {
-                        "writable_roots": [parent],
-                    },
-                },
-                (),
-            ),
-            (
-                "legacy sibling",
-                {
-                    "sandbox_mode": "workspace-write",
-                    "sandbox_workspace_write": {
-                        "writable_roots": [sibling],
-                    },
-                },
-                (required,),
-            ),
-            (
-                "profile ancestor",
-                {
-                    "default_permissions": "main",
-                    "permissions": {
-                        "main": {
-                            "workspace_roots": {
-                                parent: True,
-                            },
-                        },
-                    },
-                },
-                (),
-            ),
-            (
-                "profile sibling",
-                {
-                    "default_permissions": "main",
-                    "permissions": {
-                        "main": {
-                            "workspace_roots": {
-                                sibling: True,
-                            },
-                        },
-                    },
-                },
-                (required,),
-            ),
-        )
-
-        for name, data, expected_missing in cases:
-            with self.subTest(name=name):
-                state = permissions.analyze_config(data, (required,))
-
-                self.assertEqual(state.missing_roots, expected_missing)
 
     def test_check_reports_missing_without_writing(self) -> None:
         self.write_config(
@@ -1011,7 +968,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         before = self.config.read_bytes()
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            result = permissions.main(
+            result = access.main(
                 [
                     "check",
                     "--memory-root",
@@ -1023,8 +980,8 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ]
             )
 
-        self.assertEqual(result, permissions.EXIT_MISSING)
-        self.assertIn("Missing writable roots", output.getvalue())
+        self.assertEqual(result, access.EXIT_MISSING)
+        self.assertIn("Missing sandbox write paths", output.getvalue())
         self.assertEqual(self.config.read_bytes(), before)
 
     def test_check_rejects_blank_direct_roots(self) -> None:
@@ -1046,7 +1003,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             with self.subTest(option=option, root=root):
                 stderr = io.StringIO()
                 with contextlib.redirect_stderr(stderr):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "check",
                             option,
@@ -1056,7 +1013,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                         ]
                     )
 
-                self.assertEqual(result, permissions.EXIT_UNSUPPORTED)
+                self.assertEqual(result, access.EXIT_UNSUPPORTED)
                 self.assertIn(
                     "must not be empty or whitespace-only",
                     stderr.getvalue(),
@@ -1068,7 +1025,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             with self.subTest(config_path=config_path):
                 stderr = io.StringIO()
                 with contextlib.redirect_stderr(stderr):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "check",
                             "--knowledge-root",
@@ -1078,15 +1035,15 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                         ]
                     )
 
-                self.assertEqual(result, permissions.EXIT_UNSUPPORTED)
+                self.assertEqual(result, access.EXIT_UNSUPPORTED)
                 self.assertIn(
                     "must not be empty or whitespace-only",
                     stderr.getvalue(),
                 )
 
     def test_check_accepts_knowledge_root_without_memory_root(self) -> None:
-        roots = permissions.required_roots(
-            knowledge_roots=[str(self.knowledge)],
+        roots = access.required_sandbox_paths(
+            knowledge_paths=[str(self.knowledge)],
             environ=self.environ,
         )
         rendered = ",\n".join(f'  "{root}"' for root in roots)
@@ -1103,7 +1060,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         output = io.StringIO()
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with contextlib.redirect_stdout(output):
-                result = permissions.main(
+                result = access.main(
                     [
                         "check",
                         "--knowledge-root",
@@ -1128,8 +1085,8 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 domain: demo
             """
         )
-        roots = permissions.required_roots(
-            knowledge_roots=[str(self.knowledge)],
+        roots = access.required_sandbox_paths(
+            knowledge_paths=[str(self.knowledge)],
             environ=self.environ,
         )
         rendered = ",\n".join(f'  "{root}"' for root in roots)
@@ -1146,7 +1103,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         output = io.StringIO()
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 return_value=self.qmd_show_result(
                     "demo-knowledge",
@@ -1154,7 +1111,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ),
             ):
                 with contextlib.redirect_stdout(output):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "check",
                             "--collection",
@@ -1190,12 +1147,12 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 return_value=self.qmd_show_result("demo-knowledge", moved),
             ):
                 with contextlib.redirect_stderr(stderr):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "check",
                             "--collection",
@@ -1208,7 +1165,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                         ]
                     )
 
-        self.assertEqual(result, permissions.EXIT_UNSUPPORTED)
+        self.assertEqual(result, access.EXIT_UNSUPPORTED)
         self.assertIn("now resolves to", stderr.getvalue())
         self.assertIn("fresh approval", stderr.getvalue())
         self.assertEqual(self.config.read_bytes(), before)
@@ -1235,7 +1192,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         output = io.StringIO()
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 return_value=self.qmd_show_result(
                     "demo-knowledge",
@@ -1243,7 +1200,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ),
             ) as run:
                 with contextlib.redirect_stdout(output):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "add-roots",
                             "--collection",
@@ -1257,20 +1214,23 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                     )
 
         self.assertEqual(result, 0)
-        self.assertIn("Added Codex writable roots", output.getvalue())
+        self.assertIn(
+            "Added persistent Codex sandbox write access",
+            output.getvalue(),
+        )
         run.assert_called_once()
-        _, _, state = permissions.load_state(
+        _, _, state = access.load_sandbox_config_state(
             self.config,
-            permissions.required_roots(
-                knowledge_roots=[str(self.knowledge)],
+            access.required_sandbox_paths(
+                knowledge_paths=[str(self.knowledge)],
                 environ=self.environ,
             ),
         )
         self.assertEqual(
-            state.configured_roots,
+            state.configured_paths,
             (str(self.knowledge.resolve()),),
         )
-        self.assertEqual(state.missing_roots, ())
+        self.assertEqual(state.missing_paths, ())
 
     def test_paired_existing_collection_grant_excludes_qmd_state(self) -> None:
         self.write_registry(
@@ -1296,14 +1256,14 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 side_effect=[
                     self.qmd_show_result("demo-knowledge", knowledge_root),
                     self.qmd_show_result("demo-learning", learning_root),
                 ],
             ):
-                result = permissions.main(
+                result = access.main(
                     [
                         "add-roots",
                         "--collection",
@@ -1321,7 +1281,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                     ]
                 )
 
-        _, _, state = permissions.load_state(
+        _, _, state = access.load_sandbox_config_state(
             self.config,
             (
                 str(knowledge_root.resolve()),
@@ -1330,13 +1290,13 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         )
         self.assertEqual(result, 0)
         self.assertEqual(
-            state.configured_roots,
+            state.configured_paths,
             (
                 str(knowledge_root.resolve()),
                 str(learning_root.resolve()),
             ),
         )
-        self.assertEqual(state.missing_roots, ())
+        self.assertEqual(state.missing_paths, ())
 
     def test_add_roots_requires_expected_root_for_collection(self) -> None:
         self.write_config(
@@ -1350,9 +1310,12 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         stderr = io.StringIO()
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
-            with mock.patch.object(permissions.subprocess, "run") as run:
+            with mock.patch.object(
+                access.knowledge_base_catalog.subprocess,
+                "run",
+            ) as run:
                 with contextlib.redirect_stderr(stderr):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "add-roots",
                             "--collection",
@@ -1362,7 +1325,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                         ]
                     )
 
-        self.assertEqual(result, permissions.EXIT_UNSUPPORTED)
+        self.assertEqual(result, access.EXIT_UNSUPPORTED)
         self.assertIn(
             "--expected-root COLLECTION PATH",
             stderr.getvalue(),
@@ -1396,7 +1359,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 return_value=self.qmd_show_result(
                     "demo-knowledge",
@@ -1404,7 +1367,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ),
             ):
                 with contextlib.redirect_stderr(stderr):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "add-roots",
                             "--collection",
@@ -1418,7 +1381,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                     )
 
         rendered = stderr.getvalue()
-        self.assertEqual(result, permissions.EXIT_UNSUPPORTED)
+        self.assertEqual(result, access.EXIT_UNSUPPORTED)
         self.assertIn("now resolves to", rendered)
         self.assertIn(str(current_root.resolve()), rendered)
         self.assertIn(str(approved_root.resolve()), rendered)
@@ -1444,7 +1407,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
 
         with mock.patch.dict("os.environ", self.environ, clear=True):
             with mock.patch.object(
-                permissions.subprocess,
+                access.knowledge_base_catalog.subprocess,
                 "run",
                 side_effect=[
                     self.qmd_show_result("demo-knowledge", knowledge_root),
@@ -1452,7 +1415,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
                 ],
             ):
                 with contextlib.redirect_stdout(output):
-                    result = permissions.main(
+                    result = access.main(
                         [
                             "resolve-knowledge-learning-pair",
                             "--collection",
@@ -1483,7 +1446,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             with self.assertRaises(SystemExit) as raised:
-                permissions.main(["check", "--config", str(self.config)])
+                access.main(["check", "--config", str(self.config)])
 
         self.assertEqual(raised.exception.code, 2)
         self.assertIn(
@@ -1497,7 +1460,7 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             with self.assertRaises(SystemExit) as raised:
-                permissions.main(["add-roots", "--config", str(self.config)])
+                access.main(["add-roots", "--config", str(self.config)])
 
         self.assertEqual(raised.exception.code, 2)
         self.assertIn(
@@ -1506,8 +1469,8 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             stderr.getvalue(),
         )
 
-    def test_cli_exposes_all_permission_commands(self) -> None:
-        help_text = permissions._build_parser().format_help()
+    def test_cli_exposes_all_sandbox_access_commands(self) -> None:
+        help_text = access._build_parser().format_help()
 
         self.assertIn(
             "{check,add-roots,plan-new-collection,resolve-knowledge-learning-pair}",
@@ -1518,8 +1481,8 @@ class TestCodexMemoryPermissions(unittest.TestCase):
         self.write_config("[sandbox_workspace_write\n")
         before = self.config.read_bytes()
 
-        with self.assertRaises(permissions.ConfigError):
-            permissions.add_roots_to_config(self.config, self.roots)
+        with self.assertRaises(access.CodexSandboxConfigError):
+            access.add_sandbox_paths_to_config(self.config, self.roots)
 
         self.assertEqual(self.config.read_bytes(), before)
         self.assertEqual(list(self.config.parent.glob("*.bak-*")), [])
@@ -1534,26 +1497,26 @@ class TestCodexMemoryPermissions(unittest.TestCase):
             """
         )
 
-        with self.assertRaisesRegex(permissions.ConfigError, "mixes"):
-            permissions.add_roots_to_config(self.config, self.roots)
+        with self.assertRaisesRegex(access.CodexSandboxConfigError, "mixes"):
+            access.add_sandbox_paths_to_config(self.config, self.roots)
 
     def test_add_roots_refuses_builtin_profile(self) -> None:
         self.write_config('default_permissions = ":workspace"\n')
 
-        with self.assertRaisesRegex(permissions.ConfigError, "Built-in"):
-            permissions.add_roots_to_config(self.config, self.roots)
+        with self.assertRaisesRegex(access.CodexSandboxConfigError, "Built-in"):
+            access.add_sandbox_paths_to_config(self.config, self.roots)
 
     def test_add_roots_refuses_non_workspace_legacy_mode(self) -> None:
         self.write_config('sandbox_mode = "read-only"\n')
 
-        with self.assertRaisesRegex(permissions.ConfigError, "workspace-write"):
-            permissions.add_roots_to_config(self.config, self.roots)
+        with self.assertRaisesRegex(access.CodexSandboxConfigError, "workspace-write"):
+            access.add_sandbox_paths_to_config(self.config, self.roots)
 
     def test_add_roots_refuses_external_profile_selection(self) -> None:
         self.write_config('profile = "memory"\n')
 
-        with self.assertRaisesRegex(permissions.ConfigError, "profile file"):
-            permissions.add_roots_to_config(self.config, self.roots)
+        with self.assertRaisesRegex(access.CodexSandboxConfigError, "profile file"):
+            access.add_sandbox_paths_to_config(self.config, self.roots)
 
 
 if __name__ == "__main__":

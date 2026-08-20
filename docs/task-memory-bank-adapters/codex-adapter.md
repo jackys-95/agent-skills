@@ -14,7 +14,7 @@ For this repository, install the Codex adapter with:
 python3 scripts/install_codex.py
 ```
 
-The installer copies the canonical `task-memory-bank` skill, generates short `memory-*` wrapper skills from `adapters/codex/wrappers.toml`, copies `query-kb` and `knowledge-files`, installs/checks qmd, and configures the qmd MCP read path. It also upserts tagged Codex guidance from `adapters/codex/AGENTS.md` into `~/.codex/AGENTS.md`, packages the external-write permission helper under the memory init/doctor wrappers and `knowledge-files`, and optionally installs deferred qmd reindex hooks in `~/.codex/hooks.json`. Use `--dry-run` to preview writes, `--target <skills-dir>` to select the Codex skills installation root referenced by reindex hooks, `--skip-agents` to leave Codex guidance untouched, or `--skip-qmd` to omit both qmd setup steps.
+The installer copies the canonical `task-memory-bank` skill, generates short `memory-*` wrapper skills from `adapters/codex/wrappers.toml`, copies `query-kb` and `knowledge-files`, installs/checks qmd, and configures the qmd MCP read path. It also upserts tagged Codex guidance from `adapters/codex/AGENTS.md` into `~/.codex/AGENTS.md`, packages the sandbox access helper under the memory init/doctor wrappers and `knowledge-files`, and optionally installs deferred qmd reindex hooks in `~/.codex/hooks.json`. Use `--dry-run` to preview writes, `--target <skills-dir>` to select the Codex skills installation root referenced by reindex hooks, `--skip-agents` to leave Codex guidance untouched, or `--skip-qmd` to omit both qmd setup steps.
 
 Hook installation requires a separate choice. Interactive installs explain the execution boundary and prompt; non-interactive installs must pass `--enable-hooks` or `--skip-hooks`. With neither flag, a dry run does not prompt and plans no hook installation. `--skip-hooks` preserves existing hook registration rather than uninstalling or disabling definitions.
 
@@ -39,13 +39,13 @@ After installation, restart Codex and use `/mcp` to verify that the qmd server s
 
 Codex agents should prefer MCP `query`, `get`, and `multi_get` for reads. Lexical `qmd search` is the degraded CLI fallback when MCP is unavailable. Model-backed CLI query, vector search, and reranking are not the default on macOS because spawned commands can fail while initializing Metal under the Seatbelt sandbox.
 
-Writable roots extend filesystem access; they do not grant Metal device or API access. This distinction follows the [Codex sandbox model](https://learn.chatgpt.com/docs/sandboxing?surface=cli). The general Metal/MLX/CoreML limitation remains tracked in [openai/codex#16931](https://github.com/openai/codex/issues/16931) and [openai/codex#17644](https://github.com/openai/codex/issues/17644). This adapter does not weaken the sandbox to work around it.
+Codex sandbox write paths, represented by `writable_roots` or `workspace_roots` in configuration, extend filesystem access; they do not grant Metal device or API access. This distinction follows the [Codex sandbox model](https://learn.chatgpt.com/docs/sandboxing?surface=cli). The general Metal/MLX/CoreML limitation remains tracked in [openai/codex#16931](https://github.com/openai/codex/issues/16931) and [openai/codex#17644](https://github.com/openai/codex/issues/17644). This adapter does not weaken the sandbox to work around it.
 
 The qmd CLI and MCP server resolve the same cached GGUF model files, so MCP-first reads do not create another on-disk model copy. They are separate processes, however, and a direct embed subprocess can load its own in-memory embedding context while the MCP server holds query-time contexts. HyDE is a retrieval strategy, not another model file.
 
 ## External Write Permissions
 
-Memory banks, knowledge collections, and qmd state usually live outside the active repository. Codex's workspace sandbox needs explicit writable roots for those paths:
+Memory banks, knowledge collections, and qmd state usually live outside the active repository. Codex's workspace sandbox needs explicit write access to those paths:
 
 - Task-memory-bank changes require the selected bank root.
 - Knowledge-file authoring requires the selected knowledge or learning root.
@@ -63,27 +63,27 @@ codex \
 
 Repeat `--add-dir` for each exact knowledge or learning child root the current session will write. Do not grant a broad shared parent. This keeps the sandbox in place; do not use full-access or sandbox-bypass modes merely to reach external workflow state.
 
-The installer packages `codex_memory_permissions.py` under the generated `memory-init-project` and `memory-doctor` skills and under the installed `knowledge-files` skill. Init checks the intended bank root before canonical scaffolding writes anything; doctor provides the same check for an existing bank. Before each write to an existing knowledge or learning collection, the Codex-specific section added to the installed `knowledge-files` skill automatically checks the selected collection. Run the installed helper directly when needed:
+The installer packages `codex_sandbox_access.py` under the generated `memory-init-project` and `memory-doctor` skills and under the installed `knowledge-files` skill. Init checks the intended bank root before canonical scaffolding writes anything; doctor provides the same check for an existing bank. Before each write to an existing knowledge or learning collection, the Codex-specific section added to the installed `knowledge-files` skill automatically checks the selected collection. Run the installed helper directly when needed:
 
 ```bash
-python3 ~/.agents/skills/memory-doctor/scripts/codex_memory_permissions.py \
+python3 ~/.agents/skills/memory-doctor/scripts/codex_sandbox_access.py \
   check --memory-root /path/to/task-memory-bank
 
-python3 ~/.agents/skills/memory-doctor/scripts/codex_memory_permissions.py \
+python3 ~/.agents/skills/memory-doctor/scripts/codex_sandbox_access.py \
   add-roots --memory-root /path/to/task-memory-bank
 
-python3 ~/.agents/skills/knowledge-files/scripts/codex_memory_permissions.py \
+python3 ~/.agents/skills/knowledge-files/scripts/codex_sandbox_access.py \
   check --collection example-product-knowledge
 
-python3 ~/.agents/skills/knowledge-files/scripts/codex_memory_permissions.py \
+python3 ~/.agents/skills/knowledge-files/scripts/codex_sandbox_access.py \
   add-roots \
   --collection example-product-knowledge \
   --expected-root example-product-knowledge /exact/path/reported/by/check
 
-python3 ~/.agents/skills/knowledge-files/scripts/codex_memory_permissions.py \
+python3 ~/.agents/skills/knowledge-files/scripts/codex_sandbox_access.py \
   resolve-knowledge-learning-pair --collection example-product-knowledge
 
-python3 ~/.agents/skills/knowledge-files/scripts/codex_memory_permissions.py \
+python3 ~/.agents/skills/knowledge-files/scripts/codex_sandbox_access.py \
   plan-new-collection \
   --collection example-product-learning \
   --expected-root example-product-learning /exact/planned/example-product/learning \

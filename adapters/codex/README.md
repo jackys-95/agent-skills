@@ -6,7 +6,7 @@ Installs this repository's skills into Codex's local skills directory without pa
 python3 scripts/install_codex.py
 ```
 
-The installer copies the canonical skills from `skills/`, renders short `memory-*` wrapper skills from `wrappers.toml`, and installs/checks the qmd dependency. It also configures the qmd MCP read path, upserts tagged Codex guidance from `AGENTS.md` into `~/.codex/AGENTS.md`, packages the external-root permission helper under `memory-init-project`, `memory-doctor`, and `knowledge-files`, and optionally installs deferred qmd reindex hooks.
+The installer copies the canonical skills from `skills/`, renders short `memory-*` wrapper skills from `wrappers.toml`, and installs/checks the qmd dependency. It also configures the qmd MCP read path, upserts tagged Codex guidance from `AGENTS.md` into `~/.codex/AGENTS.md`, packages the sandbox access helper under `memory-init-project`, `memory-doctor`, and `knowledge-files`, and optionally installs deferred qmd reindex hooks.
 
 For qmd reads, the installer appends the supported STDIO entry below to `$CODEX_HOME/config.toml` only when `mcp_servers.qmd` is absent. It parses the complete TOML before writing, preserves all existing text, and verifies compatible existing entries without rewriting them. An existing enabled streamable-HTTP qmd entry is also preserved; the installer does not start another daemon. A malformed, disabled, filtered, or conflicting qmd entry fails before installation writes begin.
 
@@ -23,22 +23,22 @@ The generated init and doctor wrappers automatically check external memory-bank 
 The memory wrappers normally run this check themselves; the equivalent manual command is:
 
 ```bash
-MEMORY_HELPER=~/.agents/skills/memory-doctor/scripts/codex_memory_permissions.py
+MEMORY_HELPER=~/.agents/skills/memory-doctor/scripts/codex_sandbox_access.py
 MEMORY_ROOT=/path/to/task-memory-bank
 
 python3 "$MEMORY_HELPER" check --memory-root "$MEMORY_ROOT"
 ```
 
-The harness normally checks knowledge permissions automatically. The equivalent manual command uses the collection name, so the user does not need to remember its directory:
+The harness normally checks knowledge-base sandbox access automatically. The equivalent manual command uses the collection name, so the user does not need to remember its directory:
 
 ```bash
-KNOWLEDGE_HELPER=~/.agents/skills/knowledge-files/scripts/codex_memory_permissions.py
+KNOWLEDGE_HELPER=~/.agents/skills/knowledge-files/scripts/codex_sandbox_access.py
 COLLECTION=example-product-knowledge
 
 python3 "$KNOWLEDGE_HELPER" check --collection "$COLLECTION"
 ```
 
-For a collection that does not exist yet, plan permission before creating its root or changing either catalog:
+For a collection that does not exist yet, plan sandbox access before creating its directory or changing either catalog:
 
 ```bash
 NEW_COLLECTION=example-product-learning

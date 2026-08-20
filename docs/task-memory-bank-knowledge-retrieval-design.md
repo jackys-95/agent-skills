@@ -7,6 +7,8 @@ knowledge base whose knowledge-file implementation is
 [issue #14](https://github.com/jackys-95/agent-skills/issues/14). It captures decisions
 made during design discussion so they survive outside the base skill instructions.
 
+This is the historical TMB retrieval design. Its forward-looking descriptions of the knowledge-file implementation are superseded by the current [Knowledge Base Architecture](knowledge-base-architecture.md), which is authoritative for cross-skill taxonomy, catalog ownership, and collection cardinality.
+
 ## Scope and sequencing
 
 This ([issue #21](https://github.com/jackys-95/agent-skills/issues/21)) is **phase 1** of the

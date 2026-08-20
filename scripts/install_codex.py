@@ -53,9 +53,20 @@ ADAPTER_DIR = REPO_ROOT / "adapters" / "codex"
 DEFAULT_TARGET = Path.home() / ".agents" / "skills"
 DEFAULT_AGENTS_TARGET = Path.home() / ".codex" / "AGENTS.md"
 DEFAULT_CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-PERMISSION_HELPER = ADAPTER_DIR / "scripts" / "codex_memory_permissions.py"
+SANDBOX_ACCESS_HELPERS = tuple(
+    ADAPTER_DIR / "scripts" / name
+    for name in (
+        "codex_sandbox_access.py",
+        "codex_sandbox_config.py",
+        "knowledge_base_catalog.py",
+    )
+)
 KNOWLEDGE_SKILL_GUIDANCE = ADAPTER_DIR / "knowledge-files.md"
-PERMISSION_SKILLS = ("memory-init-project", "memory-doctor", "knowledge-files")
+SANDBOX_ACCESS_SKILLS = (
+    "memory-init-project",
+    "memory-doctor",
+    "knowledge-files",
+)
 EXIT_CONFIG = 2
 
 
@@ -72,18 +83,22 @@ def install_knowledge_skill_guidance(target_root: Path, dry_run: bool) -> None:
     )
 
 
-def install_permission_helpers(target_root: Path, dry_run: bool) -> list[Path]:
-    targets = [
-        target_root / skill / "scripts" / PERMISSION_HELPER.name
-        for skill in PERMISSION_SKILLS
+def install_sandbox_access_helpers(
+    target_root: Path,
+    dry_run: bool,
+) -> list[Path]:
+    installs = [
+        (source, target_root / skill / "scripts" / source.name)
+        for skill in SANDBOX_ACCESS_SKILLS
+        for source in SANDBOX_ACCESS_HELPERS
     ]
-    for target in targets:
-        print(f"Install Codex permission helper: {PERMISSION_HELPER} -> {target}")
+    for source, target in installs:
+        print(f"Install Codex sandbox access helper: {source} -> {target}")
         if dry_run:
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(PERMISSION_HELPER, target)
-    return targets
+        shutil.copy2(source, target)
+    return [target for _, target in installs]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -188,14 +203,17 @@ def main() -> int:
         install_memory_bank_adapter(REPO_ROOT, target_root, args.dry_run)
     install_plain_skills(REPO_ROOT, manifest, target_root, args.dry_run)
     install_knowledge_skill_guidance(target_root, args.dry_run)
-    permission_helpers = install_permission_helpers(target_root, args.dry_run)
+    sandbox_access_helpers = install_sandbox_access_helpers(
+        target_root,
+        args.dry_run,
+    )
     if not args.skip_agents:
         install_agents_md(ADAPTER_DIR / "AGENTS.md", agents_target, args.dry_run)
     if install_hooks:
         install_reindex_hooks(target_root, codex_home, args.dry_run)
 
-    print("Codex permission helpers:")
-    for helper in permission_helpers:
+    print("Codex sandbox access helpers:")
+    for helper in sandbox_access_helpers:
         print(f"  {helper}")
     print("Memory wrappers automatically check selected bank roots.")
     print(
@@ -207,7 +225,7 @@ def main() -> int:
     if args.skip_agents:
         print(
             "`--skip-agents` left global Codex AGENTS.md guidance unchanged; "
-            "the skill-local knowledge permission preflight was still installed."
+            "the skill-local sandbox access preflight was still installed."
         )
     if not args.skip_qmd:
         print(
