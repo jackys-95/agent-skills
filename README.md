@@ -12,13 +12,19 @@ macOS and Linux are both supported. For Zed users, Windows is out of scope until
 - [query-kb](skills/query-kb/SKILL.md): qmd-backed knowledge base retrieval (knowledge files + learning primers); delegates task scope to task-memory-bank.
 - [knowledge-files](skills/knowledge-files/SKILL.md): qmd-backed knowledge file authoring (classify, split into per-entity files, cross-reference, promote learning → knowledge); the write side of the knowledge base.
 
-## Tests
+## Verification
 
-Run installer unit tests with:
+- **Tests** are deterministic machine pass/fail checks, whether implemented in Python or shell. They live with the owning component's `tests/` directory or an established deterministic suite such as `scripts/test_*.py`.
+- **Evals** exercise model-mediated prompt, response, or tool-trace behavior against an explicit rubric. They live with the owning component under `evals/`; manual and non-interactive runs are execution modes of the same eval.
+- **Probes** are exploratory capture tools without a stable regression contract. Reusable probes live under `scripts/probes/`, with sanitized findings under `docs/probes/`.
+
+Run the deterministic installer tests with:
 
 ```bash
 python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
+
+See [the Codex deferred qmd MCP discovery eval](adapters/codex/evals/deferred-qmd-mcp-discovery.md) for a model-behavior example.
 
 ## Install For Codex
 
