@@ -248,6 +248,30 @@ class TestInstallCodex(unittest.TestCase):
         self.assertIn("$memory-resume", agents_text)
         self.assertIn("qmd MCP `query`, `get`, and `multi_get`", agents_text)
         self.assertIn("lexical `qmd search`", agents_text)
+        agents_prose = normalized_prose(agents_text)
+        self.assertIn(
+            "qmd MCP tool schemas may be deferred and absent from the "
+            "initially exposed tool list",
+            agents_prose,
+        )
+        self.assertIn(
+            "Before any qmd CLI read, search deferred tools for qmd "
+            "`query`, `get`, and `multi_get`",
+            agents_prose,
+        )
+        self.assertIn(
+            "Initial absence means the tools are undiscovered, not unavailable",
+            agents_prose,
+        )
+        self.assertIn(
+            "Treat qmd MCP as unavailable only when deferred discovery finds "
+            "no qmd retrieval tools or a needed MCP call fails",
+            agents_prose,
+        )
+        self.assertIn(
+            "Only then use lexical `qmd search` as the degraded read path",
+            agents_prose,
+        )
         self.assertIn("## Codex Write Permissions", agents_text)
         self.assertIn("do not write until its preflight succeeds", agents_text)
         self.assertNotIn("codex_sandbox_access.py", agents_text)

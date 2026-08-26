@@ -18,7 +18,9 @@ If a slash/menu entry is available in the active Codex surface, it is fine to us
 ## Memory Bank Discipline
 
 - Do not create a Codex-specific memory format. Use the canonical task-memory-bank structure and scripts.
-- Do not explore or search the memory bank with filesystem tools. Prefer the qmd MCP `query`, `get`, and `multi_get` tools. If MCP is unavailable, use lexical `qmd search` as the degraded read path; do not default to model-backed qmd CLI reads under the macOS command sandbox.
+- Do not explore or search the memory bank with filesystem tools. Prefer the qmd MCP `query`, `get`, and `multi_get` tools.
+- qmd MCP tool schemas may be deferred and absent from the initially exposed tool list. Before any qmd CLI read, search deferred tools for qmd `query`, `get`, and `multi_get`. Initial absence means the tools are undiscovered, not unavailable.
+- Use discovered `mcp__qmd` tools for retrieval. Treat qmd MCP as unavailable only when deferred discovery finds no qmd retrieval tools or a needed MCP call fails. Only then use lexical `qmd search` as the degraded read path; do not default to model-backed qmd CLI reads under the macOS command sandbox.
 - Keep memory-bank edits separate from implementation edits when the user needs a clean review window.
 - Reindex only after memory-bank writes are settled. The adapter's trusted lifecycle hooks normally handle this. If hooks are unavailable, use `$memory-reindex`: run one `qmd update`, then request one-shot approval for each exact `qmd embed -c <collection>` command.
 
