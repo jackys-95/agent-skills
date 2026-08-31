@@ -14,7 +14,27 @@ Reported metrics and how they are derived:
 * **model working time** -- summed gap between each assistant message and the
   record preceding it. This is the figure to compare across runs; it excludes
   user idle time.
-* **throughput** -- output tokens divided by model working time.
+* **throughput** -- output tokens divided by model working time. This is the
+  duration-weighted conversation mean: long turns dominate, so the whole session
+  reads as one stream.
+* **per-turn throughput** -- for each assistant message, that turn's output tokens
+  divided by the turn's duration, where the duration is the wall-clock gap between
+  the timestamp of the preceding record and the assistant record's timestamp. This
+  is a **client wall-clock measurement, not a server measurement**: Pi stamps the
+  log with its own local clock, and the OpenAI-compatible response from the model
+  server carries token counts and stop metadata but no server-side timings (no
+  prefill/decode split, no time to first token). Turn time therefore includes
+  request dispatch, prefill, decode, and log write; it excludes tool execution
+  (the preceding record for a tool-follow-up turn is the tool result, written
+  after the tool ran). Timestamps have 1 ms resolution, so turns under ~100 ms
+  carry a meaningful relative error. A per-turn median is reported alongside the
+  weighted mean as the robustness check: the mean of per-turn rates would
+  over-weight short turns. A turn whose *preceding record is a compaction
+  entry* is flagged (``post_compaction``): its duration then spans the
+  compaction's own summary-generation model call, so its tok/s is an
+  underestimate and the weighted mean is dragged down by the same amount.
+  Compactions are also invisible in ``output_tokens``: the summary's tokens
+  live on the compaction entry's ``usage``, not on any assistant message.
 * **reasoning share** -- thinking characters as a fraction of all generated
   prose. Characters, not tokens: providers frequently report ``usage.reasoning``
   as 0 even when thinking blocks are present, so a token-based share silently
@@ -172,12 +192,22 @@ class Turn(TypedDict):
     so ``prompt_tokens`` is a deterministic tell for which level was actually
     applied — unlike output length, which is noisy at temp 1.0. Comparing turns
     that share a prompt isolates the injected text.
+
+    ``turn_s`` and ``throughput_tok_s`` are client wall-clock figures derived from
+    the log's own timestamps (see the per-turn throughput note in the module
+    docstring); they are not server measurements.
+
+    ``post_compaction`` marks turns directly preceded by a compaction entry:
+    their ``turn_s`` may include the compaction's own model call.
     """
 
     timestamp: str
     level: str | None
     prompt_tokens: int
     output_tokens: int
+    turn_s: float
+    throughput_tok_s: float | None
+    post_compaction: bool
 
 
 class Compaction(TypedDict):
@@ -192,6 +222,7 @@ class Summary(TypedDict):
     model_working_s: float
     output_tokens: int
     throughput_tok_s: float | None
+    throughput_median_tok_s: float | None
     thinking_chars: int
     text_chars: int
     reasoning_share_pct: float | None
@@ -294,7 +325,8 @@ def summarize(records: list[Record]) -> Summary:
             continue
 
         usage = message.get("usage") or Usage()
-        output_tokens += usage.get("output", 0)
+        turn_output = usage.get("output", 0)
+        output_tokens += turn_output
         stop_reasons[str(message.get("stopReason"))] += 1
         models[str(message.get("model"))] += 1
 
@@ -304,17 +336,23 @@ def summarize(records: list[Record]) -> Summary:
 
         # The preceding record is whatever the model was responding to: a user
         # message, a tool result, or a settings change. Its timestamp is the
-        # closest available proxy for when generation started.
+        # closest available proxy for when generation started. Both stamps are
+        # written by Pi's own clock, so the gap is client wall-clock time, not a
+        # server-side measurement.
         previous = records[index - 1] if index else record
         started = parse_ts(previous["timestamp"])
-        latencies.append((parse_ts(record["timestamp"]) - started).total_seconds())
+        turn_s = (parse_ts(record["timestamp"]) - started).total_seconds()
+        latencies.append(turn_s)
 
         turns.append(
             Turn(
                 timestamp=record["timestamp"],
                 level=level,
                 prompt_tokens=usage.get("input", 0),
-                output_tokens=usage.get("output", 0),
+                output_tokens=turn_output,
+                turn_s=round(turn_s, 3),
+                throughput_tok_s=round(turn_output / turn_s, 1) if turn_s else None,
+                post_compaction=previous.get("type") == "compaction",
             )
         )
 
@@ -333,6 +371,14 @@ def summarize(records: list[Record]) -> Summary:
     working = sum(latencies)
     prose = thinking_chars + text_chars
     ordered = sorted(latencies)
+    # Per-turn rates, median as the robust figure: an unweighted mean of rates
+    # over-weights short turns (a tiny fast turn looks like hundreds of tok/s).
+    turn_rates = sorted(
+        t["output_tokens"] / t["turn_s"] for t in turns if t["turn_s"] > 0
+    )
+    throughput_median = (
+        round(turn_rates[len(turn_rates) // 2], 1) if turn_rates else None
+    )
 
     return Summary(
         records=len(records),
@@ -341,6 +387,7 @@ def summarize(records: list[Record]) -> Summary:
         model_working_s=round(working, 1),
         output_tokens=output_tokens,
         throughput_tok_s=round(output_tokens / working, 1) if working else None,
+        throughput_median_tok_s=throughput_median,
         thinking_chars=thinking_chars,
         text_chars=text_chars,
         reasoning_share_pct=round(thinking_chars / prose * 100, 1) if prose else None,
@@ -383,7 +430,8 @@ def render(summary: Summary, path: pathlib.Path) -> None:
     print(f"session span     : {format_duration(summary['session_span_s'])}   [includes user idle]")
     print(f"model working    : {format_duration(summary['model_working_s'])}")
     print(f"output tokens    : {summary['output_tokens']}")
-    print(f"throughput       : {summary['throughput_tok_s']} tok/s")
+    print(f"throughput       : {summary['throughput_tok_s']} tok/s   [duration-weighted, client wall-clock]")
+    print(f"throughput median: {summary['throughput_median_tok_s']} tok/s   [per-turn, robust to outlier turns]")
     print(f"reasoning share  : {share}")
     spread = f"median {latency['median']}s   min {latency['min']}s   max {latency['max']}s"
     print(f"latency          : {spread}")
@@ -397,18 +445,38 @@ def render(summary: Summary, path: pathlib.Path) -> None:
         print(f"thinking levels  : {len(levels)} change(s), final = {levels[-1]['level']}")
 
     turns = summary["turns"]
-    if any(t["level"] for t in turns):
+    if turns:
         print()
-        print("per-turn effort  : level in effect and the prompt it produced")
-        print("   timestamp             level     prompt_tok   output_tok")
+        print("per-turn throughput : client wall-clock only -- Pi stamps the log locally;")
+        print("                     the OpenAI-compatible response carries token counts,")
+        print("                     not server timings, so turn time cannot separate")
+        print("                     prefill from decode. 1 ms timestamp resolution.")
+        print("   timestamp   level     turn_s   prompt_tok   output_tok   tok/s")
         for turn in turns:
             stamp = turn["timestamp"][11:19]
-            shown = turn["level"] or "-"
-            cells = f"{turn['prompt_tokens']:>10}   {turn['output_tokens']:>10}"
-            print(f"   {stamp}              {shown:<9} {cells}")
-        print("   Same prompt, different levels => prompt_tok must differ (medium is")
-        print("   the baseline: low adds ~30 tokens, xhigh ~42). Identical values mean")
-        print("   the level never reached the chat template.")
+            shown = (turn["level"] or "-")[:9]
+            rate = (
+                f"{turn['throughput_tok_s']:.1f}"
+                if turn["throughput_tok_s"] is not None
+                else "-"
+            )
+            mark = " *" if turn["post_compaction"] else ""
+            cells = (
+                f"{turn['turn_s']:>8.3f}   {turn['prompt_tokens']:>10}   "
+                f"{turn['output_tokens']:>10}   {rate:>7}{mark}"
+            )
+            print(f"   {stamp}   {shown:<9} {cells}")
+        print("   A turn that hit the maxTokens ceiling (flagged below) spent its whole")
+        print("   budget on output, so its tok/s is inflated; turns under ~100 ms carry")
+        print("   meaningful timing error at 1 ms resolution.")
+        if any(t["post_compaction"] for t in turns):
+            print("   * directly follows a compaction entry; its turn_s includes the")
+            print("     compaction's own summary-generation call, so its tok/s is an")
+            print("     underestimate (the per-turn median is the robust figure).")
+        if any(t["level"] for t in turns):
+            print("   Same prompt, different levels => prompt_tok must differ (medium is")
+            print("   the baseline: low adds ~30 tokens, xhigh ~42). Identical values mean")
+            print("   the level never reached the chat template.")
     for event in summary["compactions"]:
         print(f"compaction       : {event['timestamp']}  ({event['tokens_before']} tokens before)")
 
