@@ -38,7 +38,7 @@ BUNDLED_ZED_CLI = {
     "linux": pathlib.Path.home() / ".local" / "bin" / "zed",
 }.get(sys.platform)
 
-# tmux edit-injection watcher binary per platform (see tmux_diff_injector.py).
+# tmux edit-injection watcher binary per platform (see tmux_edit_injection.py).
 # Only needed for the tmux edit-injection feature — its absence doesn't break
 # the core diff-batching flow, so this is a warning, not a hard requirement.
 WATCHER_BIN = {"darwin": "fswatch", "linux": "inotifywait"}.get(sys.platform)
@@ -86,16 +86,20 @@ HOOKS = [
     },
 ]
 
-# Scripts copied to hooks dir but not registered as CC hooks.
-# _zed_common.py, manifest.py, and snapshot_revert.py are modules the hooks import —
-# they MUST land beside them.
+# Scripts copied to hooks dir but not registered as CC hooks. Imported modules
+# MUST land beside their callers because the installed runtime is flat.
 SCRIPTS = [
     HOOKS_DIR / "_zed_common.py",
     HOOKS_DIR / "revert_zed_snapshot.py",
-    HOOKS_DIR / "tmux_diff_injector.py",
+    HOOKS_DIR / "tmux_edit_injection.py",
     CORE_DIR / "manifest.py",
     CORE_DIR / "snapshot_revert.py",
 ]
+
+OBSOLETE_SCRIPTS = (
+    "tmux_diff_injector.py",
+    "tmux_injection.py",
+)
 
 
 def install_claude_md():
@@ -110,6 +114,14 @@ def install_accept_edits(claude_settings):
         return
     perms["defaultMode"] = "acceptEdits"
     print("Set defaultMode: acceptEdits.")
+
+
+def remove_obsolete_scripts():
+    for name in OBSOLETE_SCRIPTS:
+        path = CLAUDE_HOOKS_DIR / name
+        if path.exists():
+            path.unlink()
+            print(f"Removed obsolete runtime: {path}")
 
 
 def check_zed_cli():
@@ -140,7 +152,7 @@ def check_zed_cli():
 def check_watcher():
     """Warn if the tmux edit-injection watcher binary isn't on PATH.
 
-    Only affects the tmux edit-injection feature (`tmux_diff_injector.py`); the
+    Only affects the tmux edit-injection feature (`tmux_edit_injection.py`); the
     core diff-batching flow works without it. Returns True if found.
     """
     if not WATCHER_BIN:
@@ -176,6 +188,7 @@ def main():
         shutil.copy2(script, dest)
         dest.chmod(0o755)
         print(f"Copied {script.name} → {dest}")
+    remove_obsolete_scripts()
 
     install_accept_edits(claude_settings)
     save_settings(claude_settings)
