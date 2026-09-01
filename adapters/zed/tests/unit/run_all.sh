@@ -1,33 +1,8 @@
 #!/usr/bin/env bash
-# Run all unit tests for the Zed adapter hooks
+# Run isolated function/module tests for the Zed adapters.
 set -euo pipefail
-DIR="$(dirname "$0")"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "=== adapters/core (manifest.py, snapshot_revert.py) ==="
-python3 "$DIR/../../../core/tests/test_snapshot_revert.py"
-python3 "$DIR/../../../core/tests/test_manifest.py"
-
-echo ""
-echo "=== pre_edit_zed_snapshot.py ==="
-bash "$DIR/test_pre_hook.sh"
-
-echo ""
-echo "=== post_edit_open_in_zed.py ==="
-bash "$DIR/test_post_hook.sh"
-
-echo ""
-echo "=== reset_zed_turn.py ==="
-bash "$DIR/test_reset_hook.sh"
-
-echo ""
-echo "=== stop_flush_zed_diffs.py ==="
-bash "$DIR/test_stop_hook.sh"
-
-echo ""
-echo "=== revert_zed_snapshot.py ==="
-bash "$DIR/test_revert_hook.sh"
-
-echo ""
 echo "=== prune_stale_roots.py ==="
 python3 "$DIR/test_prune_stale_roots.py"
 
@@ -36,17 +11,13 @@ echo "=== platform paths (darwin/linux) ==="
 bash "$DIR/test_platform_paths.sh"
 
 echo ""
+echo "=== shared Zed/tmux edit-injection runtime ==="
+python3 "$DIR/test_tmux_edit_injection.py"
+
+echo ""
 echo "=== ZedCodex apply_patch parser ==="
 python3 "$DIR/test_codex_patch.py"
 
 echo ""
-echo "=== ZedCodex hook lifecycle ==="
-python3 "$DIR/test_codex_hooks.py"
-
-echo ""
-echo "=== Zed + Claude Code guidance installer ==="
+echo "=== Zed + Claude Code installer helpers ==="
 python3 "$DIR/test_install_claude_guidance.py"
-
-echo ""
-echo "=== ZedCodex installer ==="
-python3 "$DIR/test_install_codex.py"

@@ -50,6 +50,28 @@ class TestInstallClaudeGuidance(unittest.TestCase):
         self.assertIn("Zed Adapter Behavior", first)
         self.assertIn("Phase-Scoped Turns", first)
 
+    def test_installer_copies_combined_tmux_edit_injection_runtime(self):
+        runtime_names = {source.name for source in zed_install.SCRIPTS}
+
+        self.assertIn("tmux_edit_injection.py", runtime_names)
+        self.assertNotIn("tmux_injection.py", runtime_names)
+        self.assertNotIn("tmux_diff_injector.py", runtime_names)
+
+    def test_installer_removes_obsolete_tmux_runtime_files(self):
+        hooks_dir = Path(self.tmp.name) / "hooks"
+        hooks_dir.mkdir()
+        combined = hooks_dir / "tmux_edit_injection.py"
+        combined.write_text("current", encoding="utf-8")
+        for name in zed_install.OBSOLETE_SCRIPTS:
+            (hooks_dir / name).write_text("obsolete", encoding="utf-8")
+
+        with mock.patch.object(zed_install, "CLAUDE_HOOKS_DIR", hooks_dir):
+            zed_install.remove_obsolete_scripts()
+
+        self.assertTrue(combined.exists())
+        for name in zed_install.OBSOLETE_SCRIPTS:
+            self.assertFalse((hooks_dir / name).exists())
+
 
 if __name__ == "__main__":
     unittest.main()

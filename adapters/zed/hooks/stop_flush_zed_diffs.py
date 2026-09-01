@@ -12,10 +12,10 @@ import json
 import os
 import subprocess
 import sys
-import time
 
 import manifest
-from _zed_common import gen_path, resolve_zed
+from _zed_common import resolve_zed
+from tmux_edit_injection import launch_watchers
 
 NAMESPACE = "cc_zed"
 
@@ -76,16 +76,11 @@ def main():
     # (CC-written) content against whatever the user saves, so it needs no base.
     tmux_pane = os.environ.get("TMUX_PANE")
     if tmux_pane:
-        injector = os.path.join(os.path.dirname(__file__), "tmux_diff_injector.py")
-        for file_path, base in edits:
-            gen_token = str(time.time())
-            with open(gen_path(file_path), "w") as f:
-                f.write(gen_token)
-            subprocess.Popen(
-                ["python3", injector, file_path, base, tmux_pane, gen_token],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        launch_watchers(
+            edits,
+            tmux_pane,
+            namespace="cc",
+        )
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ code=$?
 
 # 3b: empty manifest — silent, exit 0, no zed launch
 : > "$ZED_ARGS_LOG"
-out=$(CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< "{\"session_id\":\"$SID\"}" 2>&1)
+out=$(env -u TMUX_PANE CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< "{\"session_id\":\"$SID\"}" 2>&1)
 code=$?
 if [ $code -eq 0 ] && [ ! -s "$ZED_ARGS_LOG" ]; then
     ok "3b: empty manifest → no zed launch"
@@ -61,7 +61,7 @@ echo "created2" > "$f2"
 CC_ZED_HOOK=1 python3 "$POST_HOOK" <<< "{\"session_id\":\"$SID\",\"tool_input\":{\"file_path\":\"$f2\"}}" > /dev/null
 
 : > "$ZED_ARGS_LOG"
-out=$(CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< "{\"session_id\":\"$SID\"}" 2>&1)
+out=$(env -u TMUX_PANE CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< "{\"session_id\":\"$SID\"}" 2>&1)
 code=$?
 wait_for_log "$ZED_ARGS_LOG"
 args=$(cat "$ZED_ARGS_LOG" 2>/dev/null)
@@ -79,7 +79,7 @@ fi
 
 # 3d: manifest cleared after flush — a second Stop is a no-op
 : > "$ZED_ARGS_LOG"
-CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< "{\"session_id\":\"$SID\"}" > /dev/null 2>&1
+env -u TMUX_PANE CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< "{\"session_id\":\"$SID\"}" > /dev/null 2>&1
 if [ ! -s "$ZED_ARGS_LOG" ] && [ ! -f "$manifest" ]; then
     ok "3d: manifest cleared → second Stop is a no-op"
 else

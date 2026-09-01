@@ -15,24 +15,43 @@ per-turn state. State is keyed by `session_id` so concurrent Zed threads don't c
 | `reset_zed_turn.py` | UserPromptSubmit | Clear this session's turn markers at turn start |
 | `stop_flush_zed_diffs.py` | Stop | Open one `zed -a --diff …` multi-diff for the whole turn, then clear markers |
 
-## Unit Tests (automated)
+## Automated Tests
 
 Run from the repo root:
 
 ```bash
-bash adapters/zed/tests/unit/run_all.sh
-# or individual suites:
-bash adapters/zed/tests/unit/test_pre_hook.sh
-bash adapters/zed/tests/unit/test_post_hook.sh
-bash adapters/zed/tests/unit/test_reset_hook.sh
-bash adapters/zed/tests/unit/test_stop_hook.sh
-bash adapters/zed/tests/unit/test_platform_paths.sh
-python3 adapters/zed/tests/unit/test_codex_patch.py
-python3 adapters/zed/tests/unit/test_codex_hooks.py
-python3 adapters/zed/tests/unit/test_install_codex.py
+bash adapters/zed/tests/run_all.sh
 ```
 
-### Pre-hook (`pre_edit_zed_snapshot.py`)
+### Unit tests
+
+Unit tests import functions/modules directly and isolate process, filesystem, editor, and tmux boundaries with mocks, temporary state, or in-memory databases.
+
+```bash
+bash adapters/zed/tests/unit/run_all.sh
+bash adapters/zed/tests/unit/test_platform_paths.sh
+python3 adapters/zed/tests/unit/test_prune_stale_roots.py
+python3 adapters/zed/tests/unit/test_tmux_edit_injection.py
+python3 adapters/zed/tests/unit/test_codex_patch.py
+python3 adapters/zed/tests/unit/test_install_claude_guidance.py
+```
+
+### Integration tests
+
+Integration tests execute hook lifecycles or installer subprocesses across multiple runtime modules and real temporary filesystem state. Zed and tmux commands remain mocked or isolated; these suites do not require a live editor session.
+
+```bash
+bash adapters/zed/tests/integration/run_all.sh
+bash adapters/zed/tests/integration/test_pre_hook.sh
+bash adapters/zed/tests/integration/test_post_hook.sh
+bash adapters/zed/tests/integration/test_reset_hook.sh
+bash adapters/zed/tests/integration/test_stop_hook.sh
+bash adapters/zed/tests/integration/test_revert_hook.sh
+python3 adapters/zed/tests/integration/test_codex_hooks.py
+python3 adapters/zed/tests/integration/test_install_codex.py
+```
+
+### Integration: Pre-hook (`pre_edit_zed_snapshot.py`)
 
 | ID | Scenario | Expected |
 |----|----------|----------|
@@ -42,7 +61,7 @@ python3 adapters/zed/tests/unit/test_install_codex.py
 | 1d | Same file edited twice in one turn | First snapshot kept as base (second call is a no-op — the turn marker suppresses it) |
 | 1e | Binary file | No crash, snapshot written, exit 0 |
 
-### Post-hook (`post_edit_open_in_zed.py`)
+### Integration: Post-hook (`post_edit_open_in_zed.py`)
 
 | ID | Scenario | Expected |
 |----|----------|----------|
@@ -50,14 +69,14 @@ python3 adapters/zed/tests/unit/test_install_codex.py
 | 2b | Edit recorded | Per-`(session, file)` marker written containing the file path; no `zed` launch |
 | 2c | New file (never existed at pre-time) | Still recorded in the manifest (post-hook doesn't require the file to exist) |
 
-### Reset-hook (`reset_zed_turn.py`)
+### Integration: Reset-hook (`reset_zed_turn.py`)
 
 | ID | Scenario | Expected |
 |----|----------|----------|
 | 4a | `CC_ZED_HOOK` not set | Silent, exit 0; markers untouched |
 | 4b | Markers present | Clears this session's markers only; other sessions' markers survive |
 
-### Stop-hook (`stop_flush_zed_diffs.py`)
+### Integration: Stop-hook (`stop_flush_zed_diffs.py`)
 
 | ID | Scenario | Expected |
 |----|----------|----------|
@@ -66,26 +85,24 @@ python3 adapters/zed/tests/unit/test_install_codex.py
 | 3c | Multi-file turn (one with snapshot, one new) | ONE `zed -a --diff …` with a `--diff` pair per file; new file diffs against `/dev/null` |
 | 3d | After a flush | Markers cleared → a second `Stop` is a no-op |
 
-### Platform paths (`_zed_common.py`, `install.py`, `prune_stale_roots.py`, `tmux_diff_injector.py`)
+### Unit: Platform paths (`_zed_common.py`, `install.py`, `prune_stale_roots.py`, `tmux_edit_injection.py`)
 
-Forces `sys.platform` to `darwin`/`linux` before import (or, for the watcher, via a fake
-`fswatch`/`inotifywait` shim on `PATH`) to verify the Linux-support branches added in
-`feat(zed-adapter): add Linux support` without needing both OSes.
+Forces `sys.platform` to `darwin`/`linux` before import and calls the watcher command builder directly to verify both platform branches without needing both operating systems.
 
 | ID | Scenario | Expected |
 |----|----------|----------|
 | 7a | `_zed_common.BUNDLED_ZED_CLI` | darwin → `.app` CLI path; linux → `~/.local/bin/zed` |
 | 7b | `install.BUNDLED_ZED_CLI` / `install.WATCHER_BIN` | darwin → `.app` CLI path / `fswatch`; linux → `~/.local/bin/zed` / `inotifywait` |
 | 7c | `prune_stale_roots.DEFAULT_DB` | darwin → `Library/Application Support/Zed/...`; linux → `.local/share/zed/...` |
-| 7d | `tmux_diff_injector.WATCH_CMD` | darwin → `fswatch -1 <file>`; linux → `inotifywait -e modify -e close_write <file>` |
+| 7d | `tmux_edit_injection.watch_command` | darwin → `fswatch -1 <file>`; linux → `inotifywait -e modify -e close_write <file>` |
 
-### ZedCodex
+### ZedCodex automated coverage
 
-`test_codex_patch.py` covers Add, Update, Delete, Move, deduplication,
+The unit suite `unit/test_codex_patch.py` covers Add, Update, Delete, Move, deduplication,
 absolute/relative and parent-traversal paths, column-zero header recognition,
 literal quote/tilde characters, spaces, and non-ASCII path text.
 
-`test_codex_hooks.py` covers:
+The integration suite `integration/test_codex_hooks.py` covers:
 
 - guarded no-op behavior without `CODEX_ZED_HOOK`;
 - parent versus child `UserPromptSubmit` reset behavior;
@@ -97,7 +114,7 @@ literal quote/tilde characters, spaces, and non-ASCII path text.
 - structured Stop warnings;
 - existing-file and new-file revert semantics.
 
-`test_install_codex.py` verifies runtime copies, idempotent `hooks.json` merge,
+The integration suite `integration/test_install_codex.py` executes the installer subprocess and verifies runtime copies, idempotent `hooks.json` merge,
 preservation of unrelated config, selective AGENTS.md block installation, and
 dry-run behavior. It also verifies migration away from the former
 `additionalContextLimit = 1000` override.
@@ -160,7 +177,7 @@ python3 adapters/zed/install.py
 
 Check:
 - All four hooks copied to `~/.claude/hooks/` and executable, plus `_zed_common.py`,
-  `revert_zed_snapshot.py`, `tmux_diff_injector.py`
+  `revert_zed_snapshot.py`, `tmux_edit_injection.py`
 - `~/.claude/settings.json` registers `PreToolUse` + `PostToolUse` (matcher `Edit|Write`) and
   `UserPromptSubmit` + `Stop` (no matcher)
 - `"defaultMode": "acceptEdits"` is set

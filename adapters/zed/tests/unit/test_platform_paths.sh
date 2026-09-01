@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Unit tests for the darwin/linux platform branches added for Linux support
-# (_zed_common.py, install.py, prune_stale_roots.py, tmux_diff_injector.py).
+# Unit tests for the darwin/linux platform paths outside tmux_edit_injection.py,
+# which has focused Python coverage.
 set -euo pipefail
 
 ADAPTER_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -61,68 +61,6 @@ case "$out" in
     */.local/share/zed/db/0-stable/db.sqlite) ok "prune_stale_roots: linux DEFAULT_DB" ;;
     *) fail "prune_stale_roots: linux got '$out'" ;;
 esac
-
-# tmux_diff_injector.py: WATCH_CMD per platform. The module runs top-level watch
-# logic on import (it expects argv[1]/argv[3]/argv[4] and blocks on the watcher
-# binary), so exercise it as a subprocess against a fake, instant-exit watcher
-# binary placed first on PATH rather than importing it in-process.
-tmpdir=$(mktemp -d)
-trap 'rm -rf "$tmpdir"' EXIT
-
-# The fake watcher logs its argv, then mutates the watched file (its last arg)
-# so tmux_diff_injector.py's before/after check sees a change and exits its
-# watch loop on the first pass instead of spinning for the full 120s timeout.
-cat > "$tmpdir/fswatch" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\n' "$*" > "$FAKE_WATCH_LOG"
-echo "changed" >> "${@: -1}"
-exit 0
-EOF
-cat > "$tmpdir/inotifywait" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\n' "$*" > "$FAKE_WATCH_LOG"
-echo "changed" >> "${@: -1}"
-exit 0
-EOF
-chmod +x "$tmpdir/fswatch" "$tmpdir/inotifywait"
-
-target="/tmp/zed_platform_test_target.txt"
-: > "$target"
-log="$tmpdir/watch_log"
-
-FAKE_WATCH_LOG="$log" PATH="$tmpdir:$PATH" python3 -c "
-import sys
-sys.platform = 'darwin'
-sys.argv = ['tmux_diff_injector.py', '$target', 'ignored', 'testpane', 'gen1']
-sys.path.insert(0, '$ADAPTER_DIR/hooks')
-sys.path.insert(0, '$ADAPTER_DIR/../core')
-exec(open('$ADAPTER_DIR/hooks/tmux_diff_injector.py').read())
-" >/dev/null 2>&1 || true
-out=$(cat "$log" 2>/dev/null || echo "")
-if echo "$out" | grep -q -- "-1 $target"; then
-    ok "tmux_diff_injector: darwin uses fswatch -1 <file>"
-else
-    fail "tmux_diff_injector: darwin got '$out'"
-fi
-rm -f "$log"
-: > "$target"
-
-FAKE_WATCH_LOG="$log" PATH="$tmpdir:$PATH" python3 -c "
-import sys
-sys.platform = 'linux'
-sys.argv = ['tmux_diff_injector.py', '$target', 'ignored', 'testpane', 'gen1']
-sys.path.insert(0, '$ADAPTER_DIR/hooks')
-sys.path.insert(0, '$ADAPTER_DIR/../core')
-exec(open('$ADAPTER_DIR/hooks/tmux_diff_injector.py').read())
-" >/dev/null 2>&1 || true
-out=$(cat "$log" 2>/dev/null || echo "")
-if echo "$out" | grep -q -- "-e modify -e close_write $target"; then
-    ok "tmux_diff_injector: linux uses inotifywait -e modify -e close_write <file>"
-else
-    fail "tmux_diff_injector: linux got '$out'"
-fi
-
-rm -f "$target"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
