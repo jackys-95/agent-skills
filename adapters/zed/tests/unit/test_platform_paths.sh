@@ -11,7 +11,7 @@ fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 # Runs a python snippet with sys.platform forced to $1 before importing the
 # module named by $2 from $3 (one or more :-separated directories added to
-# sys.path — _zed_common.py needs both hooks/ and core/ since it imports
+# sys.path — _zed_common.py needs both hooks/core/ and adapters/core/ since it imports
 # path_hash from snapshot_revert.py).
 run_forced() {
     local plat="$1" mod="$2" dirs="$3" code="$4"
@@ -27,26 +27,26 @@ $code
 }
 
 # _zed_common.py: BUNDLED_ZED_CLI per platform
-out=$(run_forced darwin _zed_common "$ADAPTER_DIR/hooks:$ADAPTER_DIR/../core" "print(mod.BUNDLED_ZED_CLI)")
+out=$(run_forced darwin _zed_common "$ADAPTER_DIR/hooks/core:$ADAPTER_DIR/../core" "print(mod.BUNDLED_ZED_CLI)")
 [ "$out" = "/Applications/Zed.app/Contents/MacOS/cli" ] && ok "_zed_common: darwin BUNDLED_ZED_CLI" || fail "_zed_common: darwin BUNDLED_ZED_CLI got '$out'"
 
-out=$(run_forced linux _zed_common "$ADAPTER_DIR/hooks:$ADAPTER_DIR/../core" "print(mod.BUNDLED_ZED_CLI)")
+out=$(run_forced linux _zed_common "$ADAPTER_DIR/hooks/core:$ADAPTER_DIR/../core" "print(mod.BUNDLED_ZED_CLI)")
 expected="$HOME/.local/bin/zed"
 [ "$out" = "$expected" ] && ok "_zed_common: linux BUNDLED_ZED_CLI" || fail "_zed_common: linux BUNDLED_ZED_CLI got '$out' want '$expected'"
 
-# install.py: BUNDLED_ZED_CLI + WATCHER_BIN per platform
-out=$(run_forced darwin install "$ADAPTER_DIR" "print(mod.BUNDLED_ZED_CLI); print(mod.WATCHER_BIN)")
+# install_zed_cc.py: BUNDLED_ZED_CLI + WATCHER_BIN per platform
+out=$(run_forced darwin install_zed_cc "$ADAPTER_DIR" "print(mod.BUNDLED_ZED_CLI); print(mod.WATCHER_BIN)")
 if echo "$out" | grep -q "/Applications/Zed.app/Contents/MacOS/cli" && echo "$out" | grep -q "^fswatch$"; then
-    ok "install.py: darwin BUNDLED_ZED_CLI + WATCHER_BIN"
+    ok "install_zed_cc.py: darwin BUNDLED_ZED_CLI + WATCHER_BIN"
 else
-    fail "install.py: darwin got '$out'"
+    fail "install_zed_cc.py: darwin got '$out'"
 fi
 
-out=$(run_forced linux install "$ADAPTER_DIR" "print(mod.BUNDLED_ZED_CLI); print(mod.WATCHER_BIN)")
+out=$(run_forced linux install_zed_cc "$ADAPTER_DIR" "print(mod.BUNDLED_ZED_CLI); print(mod.WATCHER_BIN)")
 if echo "$out" | grep -q "\.local/bin/zed" && echo "$out" | grep -q "^inotifywait$"; then
-    ok "install.py: linux BUNDLED_ZED_CLI + WATCHER_BIN"
+    ok "install_zed_cc.py: linux BUNDLED_ZED_CLI + WATCHER_BIN"
 else
-    fail "install.py: linux got '$out'"
+    fail "install_zed_cc.py: linux got '$out'"
 fi
 
 # prune_stale_roots.py: DEFAULT_DB per platform

@@ -11,12 +11,16 @@ echo "=== post_edit_open_in_zed.py ==="
 bash "$DIR/test_post_hook.sh"
 
 echo ""
-echo "=== reset_zed_turn.py ==="
-bash "$DIR/test_reset_hook.sh"
+echo "=== zed_turn_lifecycle.py (Claude Code policy) ==="
+bash "$DIR/test_claude_code_turn_lifecycle.sh"
 
 echo ""
-echo "=== stop_flush_zed_diffs.py ==="
+echo "=== stop_flush_claude_code_zed_diffs.py ==="
 bash "$DIR/test_stop_hook.sh"
+
+echo ""
+echo "=== Claude Code pane authority lifecycle ==="
+python3 "$DIR/test_claude_code_pane_authority_hooks.py"
 
 echo ""
 echo "=== revert_zed_snapshot.py ==="
@@ -28,4 +32,4 @@ python3 "$DIR/test_codex_hooks.py"
 
 echo ""
 echo "=== ZedCodex installer subprocess ==="
-python3 "$DIR/test_install_codex.py"
+python3 "$DIR/test_install_zed_codex.py"

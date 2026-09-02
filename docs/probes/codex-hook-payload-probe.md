@@ -5,14 +5,14 @@ results that informed the Zed + Codex CLI adapter design. The probe is research
 tooling, not production adapter behavior.
 
 Production hooks should live under the owning adapter. Probe scripts should stay
-under `scripts/probes/` so they do not look like installed runtime hooks.
+under `scripts/codex/probes/` so they do not look like installed runtime hooks.
 
 ## Probe script
 
 Use:
 
 ```text
-scripts/probes/codex_hook_payload_probe.py
+scripts/codex/probes/codex_hook_payload_probe.py
 ```
 
 The probe:
@@ -39,7 +39,7 @@ Run the script directly for a smoke test:
 
 ```bash
 CODEX_HOOK_PROBE=1 \
-python3 scripts/probes/codex_hook_payload_probe.py --event Stop \
+python3 scripts/codex/probes/codex_hook_payload_probe.py --event Stop \
   <<< '{"hook_event_name":"Stop","example":true}'
 ```
 
@@ -55,14 +55,14 @@ Codex hook config uses PascalCase event names and command hook entries:
 [[hooks.SessionStart]]
 [[hooks.SessionStart.hooks]]
 type = "command"
-command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/probes/codex_hook_payload_probe.py --event SessionStart"
+command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/codex/probes/codex_hook_payload_probe.py --event SessionStart"
 timeout = 30
 statusMessage = "Probe SessionStart"
 
 [[hooks.UserPromptSubmit]]
 [[hooks.UserPromptSubmit.hooks]]
 type = "command"
-command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/probes/codex_hook_payload_probe.py --event UserPromptSubmit"
+command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/codex/probes/codex_hook_payload_probe.py --event UserPromptSubmit"
 timeout = 30
 statusMessage = "Probe UserPromptSubmit"
 
@@ -70,7 +70,7 @@ statusMessage = "Probe UserPromptSubmit"
 matcher = "*"
 [[hooks.PreToolUse.hooks]]
 type = "command"
-command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/probes/codex_hook_payload_probe.py --event PreToolUse"
+command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/codex/probes/codex_hook_payload_probe.py --event PreToolUse"
 timeout = 30
 statusMessage = "Probe PreToolUse"
 
@@ -78,14 +78,14 @@ statusMessage = "Probe PreToolUse"
 matcher = "*"
 [[hooks.PostToolUse.hooks]]
 type = "command"
-command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/probes/codex_hook_payload_probe.py --event PostToolUse"
+command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/codex/probes/codex_hook_payload_probe.py --event PostToolUse"
 timeout = 30
 statusMessage = "Probe PostToolUse"
 
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
 type = "command"
-command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/probes/codex_hook_payload_probe.py --event Stop"
+command = "CODEX_HOOK_PROBE=1 python3 /absolute/path/to/scripts/codex/probes/codex_hook_payload_probe.py --event Stop"
 timeout = 30
 statusMessage = "Probe Stop"
 ```

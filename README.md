@@ -14,14 +14,16 @@ macOS and Linux are both supported. For Zed users, Windows is out of scope until
 
 ## Verification
 
-- **Tests** are deterministic machine pass/fail checks, whether implemented in Python or shell. They live with the owning component's `tests/` directory or an established deterministic suite such as `scripts/test_*.py`.
+- **Tests** are deterministic machine pass/fail checks, whether implemented in Python or shell. They live with the owning component's `tests/` directory or its `scripts/core`, `scripts/claude-code`, or `scripts/codex` responsibility directory.
 - **Evals** exercise model-mediated prompt, response, or tool-trace behavior against an explicit rubric. They live with the owning component under `evals/`; manual and non-interactive runs are execution modes of the same eval.
-- **Probes** are exploratory capture tools without a stable regression contract. Reusable probes live under `scripts/probes/`, with sanitized findings under `docs/probes/`.
+- **Probes** are exploratory capture tools without a stable regression contract. Reusable probes live under the owning scripts directory, such as `scripts/codex/probes/`, with sanitized findings under `docs/probes/`.
 
 Run the deterministic installer tests with:
 
 ```bash
-python3 -m unittest discover -s scripts -p 'test_*.py'
+python3 -m unittest discover -s scripts/core -p 'test_*.py'
+python3 -m unittest discover -s scripts/claude-code -p 'test_*.py'
+python3 -m unittest discover -s scripts/codex -p 'test_*.py'
 ```
 
 See [the Codex deferred qmd MCP discovery eval](adapters/codex/evals/deferred-qmd-mcp-discovery.md) for a model-behavior example.
@@ -32,7 +34,7 @@ This repository is the source of truth for authored skills. Install the Codex
 adapter into the shared local agent skills directory with:
 
 ```bash
-python3 scripts/install_codex.py
+python3 scripts/codex/install_codex.py
 ```
 
 Codex discovers installed skills from:
@@ -67,7 +69,7 @@ adapters/claude-code/
 Install the skills plus generated `/memory-*` wrappers with:
 
 ```bash
-python3 scripts/install_claude_code.py
+python3 scripts/claude-code/install_claude_code.py
 ```
 
 The installer copies `skills/task-memory-bank`, renders wrapper skills from the adapter manifest, copies plain skills listed in the manifest (`skills/query-kb`, `skills/knowledge-files`), installs the qmd skill (installing qmd itself first if it is not already present), and installs qmd reindex hooks from the Claude-specific detector plus the shared runtime in `adapters/core/`. Hooks are copied to `~/.claude/hooks/` and registered in `~/.claude/settings.json` so memory-bank edits are reindexed automatically at turn boundaries. The core skills remain the source of truth.
@@ -90,24 +92,24 @@ bun install -g @tobilu/qmd   # or: npm install -g @tobilu/qmd
 You can use these agent skills with Claude Code or Codex while Zed provides the
 editor-side review surface.
 
-**zed-cc** is a Zed + CC pairing. It requires two adapters: the CC adapter (skills and wrappers) and the Zed adapter (diff view hooks).
+**ZedCC** is a Zed + Claude Code pairing. It requires two adapters: the Claude Code adapter (skills and wrappers) and the Zed adapter (diff view hooks).
 
 ```bash
 # 1. CC adapter — installs skills, /memory-* wrappers, and reindex hooks
-python3 scripts/install_claude_code.py
+python3 scripts/claude-code/install_claude_code.py
 
 # 2. Zed adapter - installs diff hooks and Zed-scoped CLAUDE.md guidance
-python3 adapters/zed/install.py
+python3 adapters/zed/install_zed_cc.py
 ```
 
 **ZedCodex** pairs Zed with Codex CLI:
 
 ```bash
 # 1. Codex adapter - configures qmd MCP, installs skills, and offers reindex hooks
-python3 scripts/install_codex.py
+python3 scripts/codex/install_codex.py
 
 # 2. ZedCodex adapter - installs hooks and Zed-scoped AGENTS.md guidance
-python3 adapters/zed/install_codex.py
+python3 adapters/zed/install_zed_codex.py
 ```
 
 See [adapters/zed/README.md](adapters/zed/README.md) for activation and hook

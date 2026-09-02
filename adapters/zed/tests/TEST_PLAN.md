@@ -1,19 +1,32 @@
 # Zed Adapter Test Plan
 
-For zed-cc, diffs are **batched per CC turn**: individual edits are queued, and one multi-diff
+For ZedCC, diffs are **batched per CC turn**: individual edits are queued, and one multi-diff
 opens on the `Stop` hook when the turn ends. This fronts Zed once per turn instead of
 once per edit — eliminating single-monitor focus-steal and the keystroke-misrouting
 risk of per-edit opens. A "turn" is one user prompt; `UserPromptSubmit` resets the
 per-turn state. State is keyed by `session_id` so concurrent Zed threads don't collide.
+When a harness runs inside tmux, both CC and Codex also participate in one
+cross-harness pane claim. Prompt submission restakes authority; session hooks
+revoke stale or ended claims; the CC Stop hook and worker fail closed unless
+the expected claim and owning process are still current.
 
 ## Hook roles
 
-| Hook | Event | Role |
-|------|-------|------|
-| `pre_edit_zed_snapshot.py` | PreToolUse (Edit\|Write) | Snapshot the file's **turn-start** state, once per file per turn (keep the first) |
-| `post_edit_open_in_zed.py` | PostToolUse (Edit\|Write) | Queue the edited file in the turn manifest (marker); covers Write-created new files |
-| `reset_zed_turn.py` | UserPromptSubmit | Clear this session's turn markers at turn start |
-| `stop_flush_zed_diffs.py` | Stop | Open one `zed -a --diff …` multi-diff for the whole turn, then clear markers |
+Repository sources are organized by responsibility. Installers copy the
+required files by basename into flat harness runtime directories.
+
+| Source | Event | Role |
+|--------|-------|------|
+| `hooks/core/zed_turn_lifecycle.py` | UserPromptSubmit | Under explicit CC or Codex policy, clear the harness turn and restake pane authority |
+| `hooks/core/zed_turn_lifecycle.py` | SessionStart/SessionEnd | Under explicit CC or Codex policy, revoke mismatched or ended pane authority |
+| `hooks/core/tmux_pane_authority.py` | Imported core | Persist and validate the cross-harness pane claim |
+| `hooks/core/tmux_edit_injection.py` | CC worker | Watch edited files and inject only while the expected pane claim remains current |
+| `hooks/claude-code/pre_edit_zed_snapshot.py` | PreToolUse (Edit\|Write) | Snapshot the file's **turn-start** state, once per file per turn |
+| `hooks/claude-code/post_edit_open_in_zed.py` | PostToolUse (Edit\|Write) | Queue the edited file in the turn manifest |
+| `hooks/claude-code/stop_flush_claude_code_zed_diffs.py` | Stop | Open one `zed -a --diff ...` multi-diff, then launch authorized watchers |
+| `hooks/codex/pre_apply_patch_zed_snapshot.py` | PreToolUse (`apply_patch`) | Snapshot every path named by the parent Codex patch |
+| `hooks/codex/post_apply_patch_zed_touch.py` | PostToolUse (`apply_patch`) | Confirm successfully patched paths |
+| `hooks/codex/stop_flush_codex_zed_diffs.py` | Stop | Open one Zed multi-diff for the completed Codex turn |
 
 ## Automated Tests
 
@@ -31,9 +44,10 @@ Unit tests import functions/modules directly and isolate process, filesystem, ed
 bash adapters/zed/tests/unit/run_all.sh
 bash adapters/zed/tests/unit/test_platform_paths.sh
 python3 adapters/zed/tests/unit/test_prune_stale_roots.py
+python3 adapters/zed/tests/unit/test_tmux_pane_authority.py
 python3 adapters/zed/tests/unit/test_tmux_edit_injection.py
 python3 adapters/zed/tests/unit/test_codex_patch.py
-python3 adapters/zed/tests/unit/test_install_claude_guidance.py
+python3 adapters/zed/tests/unit/test_install_zed_cc.py
 ```
 
 ### Integration tests
@@ -44,11 +58,12 @@ Integration tests execute hook lifecycles or installer subprocesses across multi
 bash adapters/zed/tests/integration/run_all.sh
 bash adapters/zed/tests/integration/test_pre_hook.sh
 bash adapters/zed/tests/integration/test_post_hook.sh
-bash adapters/zed/tests/integration/test_reset_hook.sh
+bash adapters/zed/tests/integration/test_claude_code_turn_lifecycle.sh
 bash adapters/zed/tests/integration/test_stop_hook.sh
+python3 adapters/zed/tests/integration/test_claude_code_pane_authority_hooks.py
 bash adapters/zed/tests/integration/test_revert_hook.sh
 python3 adapters/zed/tests/integration/test_codex_hooks.py
-python3 adapters/zed/tests/integration/test_install_codex.py
+python3 adapters/zed/tests/integration/test_install_zed_codex.py
 ```
 
 ### Integration: Pre-hook (`pre_edit_zed_snapshot.py`)
@@ -69,14 +84,15 @@ python3 adapters/zed/tests/integration/test_install_codex.py
 | 2b | Edit recorded | Per-`(session, file)` marker written containing the file path; no `zed` launch |
 | 2c | New file (never existed at pre-time) | Still recorded in the manifest (post-hook doesn't require the file to exist) |
 
-### Integration: Reset-hook (`reset_zed_turn.py`)
+### Integration: CC turn lifecycle (`core/zed_turn_lifecycle.py`)
 
 | ID | Scenario | Expected |
 |----|----------|----------|
 | 4a | `CC_ZED_HOOK` not set | Silent, exit 0; markers untouched |
 | 4b | Markers present | Clears this session's markers only; other sessions' markers survive |
+| 4c | Matching tmux context | Replaces the cross-harness pane claim with a fresh CC turn-authority token |
 
-### Integration: Stop-hook (`stop_flush_zed_diffs.py`)
+### Integration: Claude Code Stop hook (`claude-code/stop_flush_claude_code_zed_diffs.py`)
 
 | ID | Scenario | Expected |
 |----|----------|----------|
@@ -85,7 +101,20 @@ python3 adapters/zed/tests/integration/test_install_codex.py
 | 3c | Multi-file turn (one with snapshot, one new) | ONE `zed -a --diff …` with a `--diff` pair per file; new file diffs against `/dev/null` |
 | 3d | After a flush | Markers cleared → a second `Stop` is a no-op |
 
-### Unit: Platform paths (`_zed_common.py`, `install.py`, `prune_stale_roots.py`, `tmux_edit_injection.py`)
+### Pane-authority lifecycle
+
+`unit/test_tmux_pane_authority.py` covers canonical server/pane keys, private
+claim and lock files, atomic replacement, malformed-state denial, PID plus
+start-time liveness, cross-harness supersession, expected-claim serialization,
+event-specific revocation, and the locked race where an old hook must not
+delete a concurrent newer restake.
+
+`integration/test_claude_code_pane_authority_hooks.py` covers Claude Code prompt restaking,
+matching SessionStart preservation, owned-only SessionEnd cleanup, matching
+Stop watcher launch, and denied Stop authorization that still opens the Zed
+diff.
+
+### Unit: Platform paths (`_zed_common.py`, `install_zed_cc.py`, `prune_stale_roots.py`, `tmux_edit_injection.py`)
 
 Forces `sys.platform` to `darwin`/`linux` before import and calls the watcher command builder directly to verify both platform branches without needing both operating systems.
 
@@ -106,6 +135,8 @@ The integration suite `integration/test_codex_hooks.py` covers:
 
 - guarded no-op behavior without `CODEX_ZED_HOOK`;
 - parent versus child `UserPromptSubmit` reset behavior;
+- parent prompt pane-authority restaking without child supersession;
+- SessionStart mismatch revocation and SessionEnd owned-claim cleanup;
 - first-base retention across repeated pre-hooks;
 - multi-file Add/Update/Delete/Move rendering;
 - `/dev/null` pairs for created and deleted paths;
@@ -114,7 +145,7 @@ The integration suite `integration/test_codex_hooks.py` covers:
 - structured Stop warnings;
 - existing-file and new-file revert semantics.
 
-The integration suite `integration/test_install_codex.py` executes the installer subprocess and verifies runtime copies, idempotent `hooks.json` merge,
+The integration suite `integration/test_install_zed_codex.py` executes the installer subprocess and verifies runtime copies, idempotent `hooks.json` merge,
 preservation of unrelated config, selective AGENTS.md block installation, and
 dry-run behavior. It also verifies migration away from the former
 `additionalContextLimit = 1000` override.
@@ -126,7 +157,7 @@ dry-run behavior. It also verifies migration away from the former
 Prerequisites:
 - `CC_ZED_HOOK=1` set in Zed `agent_servers."claude-acp".env` (or `terminal.env` for terminal-thread)
 - `defaultMode: acceptEdits` in `~/.claude/settings.json`
-- All four hooks installed in `~/.claude/hooks/`
+- All six lifecycle registrations installed in `~/.claude/settings.json`
 
 ### 5a — Batched open at end of turn
 
@@ -172,39 +203,41 @@ Prerequisites:
 ## Install Verification
 
 ```bash
-python3 adapters/zed/install.py
+python3 adapters/zed/install_zed_cc.py
 ```
 
 Check:
-- All four hooks copied to `~/.claude/hooks/` and executable, plus `_zed_common.py`,
-  `revert_zed_snapshot.py`, `tmux_edit_injection.py`
+- All registered hooks copied to `~/.claude/hooks/` and executable, plus
+  `_zed_common.py`, `revert_zed_snapshot.py`, `tmux_edit_injection.py`, and
+  `tmux_pane_authority.py`
 - `~/.claude/settings.json` registers `PreToolUse` + `PostToolUse` (matcher `Edit|Write`) and
-  `UserPromptSubmit` + `Stop` (no matcher)
+  `UserPromptSubmit` + `Stop` + `SessionStart` + `SessionEnd` (no matcher)
 - `"defaultMode": "acceptEdits"` is set
 - `~/.claude/CLAUDE.md` contains current `<!-- zed-launch-context -->`,
   `<!-- zed-adapter -->`, and `<!-- phase-turns -->` blocks.
-- Running `install.py` twice does not duplicate any hook command or CLAUDE.md
+- Running `install_zed_cc.py` twice does not duplicate any hook command or CLAUDE.md
   block, or corrupt settings.
-- Running only `scripts/install_claude_code.py` does not install any of these
+- Running only `scripts/claude-code/install_claude_code.py` does not install any of these
   Zed-specific blocks.
 
 ### ZedCodex install
 
 ```bash
-python3 adapters/zed/install_codex.py
+python3 adapters/zed/install_zed_codex.py
 ```
 
 Check:
 
 - Runtime files are under `~/.codex/hooks/zedcodex/`.
-- `~/.codex/hooks.json` contains four hooks without changing
+- `~/.codex/hooks.json` contains six hooks without changing
   `~/.codex/config.toml`.
 - `/hooks` shows UserPromptSubmit, PreToolUse `^apply_patch$`, PostToolUse
-  `^apply_patch$`, and Stop definitions awaiting review on first install.
+  `^apply_patch$`, Stop, SessionStart, and SessionEnd definitions awaiting review
+  on first install.
 - Trust persists after restart and changes to a hook definition require review.
 - `~/.codex/AGENTS.md` contains one `<!-- zed-codex-adapter -->` block and one
   `<!-- phase-turns -->` block.
-- Running only `scripts/install_codex.py` installs neither Zed-specific block.
+- Running only `scripts/codex/install_codex.py` installs neither Zed-specific block.
 
 ### ZedCodex manual review
 

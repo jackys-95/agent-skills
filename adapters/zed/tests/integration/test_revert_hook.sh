@@ -5,7 +5,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-HOOK="$DIR/../../hooks/revert_zed_snapshot.py"
+HOOK="$DIR/../../hooks/claude-code/revert_zed_snapshot.py"
 export PYTHONPATH="$DIR/../../../core:${PYTHONPATH:-}"
 PASS=0; FAIL=0
 
