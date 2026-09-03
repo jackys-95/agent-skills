@@ -3,7 +3,7 @@
 **Status:** fixed — one-flag change, confirmed live (real usage + concurrent stress) post-restart
 **Date:** 2026-07-01
 **Tracking:** [jackys-95/agent-skills#22](https://github.com/jackys-95/agent-skills/issues/22)
-**Component:** zed-cc adapter hook — `post_edit_open_in_zed.py` (adapter source in `adapters/zed/`)
+**Component:** ZedCC adapter hook — `post_edit_open_in_zed.py` (adapter source in `adapters/zed/`)
 
 > **History:** this file replaces an earlier `zed-diff-hook-batching-design.md` whose root-cause
 > analysis (a concurrency bug) and fix (a batch-and-flush queue) were **wrong**. The correction is
@@ -13,7 +13,7 @@
 
 ## 1. Problem
 
-The zed-cc post-edit hook opens a Zed diff pane after each file edit, via
+The ZedCC post-edit hook opens a Zed diff pane after each file edit, via
 `subprocess.Popen([zed, "--diff", snapshot, file_path])`. Users reported that editing files —
 especially task-memory-bank files — sometimes **swapped the active Zed window's project** to an
 unrelated folder, losing their working context.
@@ -117,5 +117,5 @@ Zed CLI reference at zed.dev (newer build — use with caution).
 
 1. `adapters/zed/hooks/post_edit_open_in_zed.py` — `-a` added to both invocations. **[done]**
 2. `adapters/zed/tests/` (`test_post_hook.sh`, `TEST_PLAN.md`) — assert the `-a` flag.
-3. `adapters/zed/README.md`, `adapters/zed/install.py` — update `zed --diff` references to `zed -a --diff`.
+3. `adapters/zed/README.md`, `adapters/zed/install_zed_cc.py` — update `zed --diff` references to `zed -a --diff`.
 4. Post the root-cause correction on issue #22 and close with the fix commit.

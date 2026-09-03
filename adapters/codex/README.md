@@ -3,7 +3,7 @@
 Installs this repository's skills into Codex's local skills directory without packaging them as a Codex plugin.
 
 ```bash
-python3 scripts/install_codex.py
+python3 scripts/codex/install_codex.py
 ```
 
 The installer copies the canonical skills from `skills/`, renders short `memory-*` wrapper skills from `wrappers.toml`, and installs/checks the qmd dependency. It also configures the qmd MCP read path, upserts tagged Codex guidance from `AGENTS.md` into `~/.codex/AGENTS.md`, packages the sandbox access helper under `memory-init-project`, `memory-doctor`, and `knowledge-files`, and optionally installs deferred qmd reindex hooks.
@@ -116,7 +116,7 @@ Knowledge and learning files do not route through `memory-reindex`. After their 
 For optional turn-batched Zed diff/revert hooks, also run:
 
 ```bash
-python3 adapters/zed/install_codex.py
+python3 adapters/zed/install_zed_codex.py
 ```
 
 Both installers merge their own definitions into `~/.codex/hooks.json` and preserve each other's hooks. The base Codex adapter owns only the qmd MCP entry in `config.toml`; the ZedCodex installer leaves that file untouched. Changed hook definitions require another review through `/hooks`.

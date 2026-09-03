@@ -3,7 +3,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-HOOK="$DIR/../../hooks/pre_edit_zed_snapshot.py"
+HOOK="$DIR/../../hooks/claude-code/pre_edit_zed_snapshot.py"
 export PYTHONPATH="$DIR/../../../core:${PYTHONPATH:-}"
 PASS=0; FAIL=0
 SID="testsession1"

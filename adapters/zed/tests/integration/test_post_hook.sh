@@ -4,7 +4,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-HOOK="$DIR/../../hooks/post_edit_open_in_zed.py"
+HOOK="$DIR/../../hooks/claude-code/post_edit_open_in_zed.py"
 export PYTHONPATH="$DIR/../../../core:${PYTHONPATH:-}"
 PASS=0; FAIL=0
 SID="postsess"

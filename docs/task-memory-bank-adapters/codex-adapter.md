@@ -11,7 +11,7 @@ Install local Codex skills under:
 For this repository, install the Codex adapter with:
 
 ```bash
-python3 scripts/install_codex.py
+python3 scripts/codex/install_codex.py
 ```
 
 The installer copies the canonical `task-memory-bank` skill, generates short `memory-*` wrapper skills from `adapters/codex/wrappers.toml`, copies `query-kb` and `knowledge-files`, installs/checks qmd, and configures the qmd MCP read path. It also upserts tagged Codex guidance from `adapters/codex/AGENTS.md` into `~/.codex/AGENTS.md`, packages the sandbox access helper under the memory init/doctor wrappers and `knowledge-files`, and optionally installs deferred qmd reindex hooks in `~/.codex/hooks.json`. Use `--dry-run` to preview writes, `--target <skills-dir>` to select the Codex skills installation root referenced by reindex hooks, `--skip-agents` to leave Codex guidance untouched, or `--skip-qmd` to omit both qmd setup steps.

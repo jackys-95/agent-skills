@@ -10,14 +10,14 @@ Do not create a separate Claude-only memory-bank structure or duplicate the work
 skills/task-memory-bank/              # canonical workflow source
 adapters/claude-code/wrappers.toml    # Claude wrapper manifest
 adapters/claude-code/templates/       # wrapper templates
-scripts/install_claude_code.py        # installer/generator
+scripts/claude-code/install_claude_code.py  # installer/generator
 ~/.claude/skills/                     # default install target
 ```
 
 Run the installer from the repository root:
 
 ```bash
-python3 scripts/install_claude_code.py
+python3 scripts/claude-code/install_claude_code.py
 ```
 
 Use `--dry-run` to preview writes or `--target <dir>` to install into another Claude Code skills directory.
@@ -66,7 +66,7 @@ The adapter owns Claude Code path extraction and native hook registration
 (design: `docs/task-memory-bank-reindex-hooks.md`). Shared marker and flush
 runtime lives in `adapters/core/`; the installer copies it with the
 Claude-specific detector to `~/.claude/hooks/` and registers events in
-`~/.claude/settings.json` via `scripts/hook_install.py`.
+`~/.claude/settings.json` via `scripts/claude-code/hook_install.py`.
 
 | Event | Matcher | Script | Action |
 |---|---|---|---|

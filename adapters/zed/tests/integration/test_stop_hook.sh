@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Unit tests for stop_flush_zed_diffs.py — flushes the turn's manifest into ONE
+# Script tests for the Claude Code Stop hook.
 # `zed -a --diff ... --diff ...` multi-diff and clears the manifest.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-HOOK="$DIR/../../hooks/stop_flush_zed_diffs.py"
-PRE_HOOK="$DIR/../../hooks/pre_edit_zed_snapshot.py"
-POST_HOOK="$DIR/../../hooks/post_edit_open_in_zed.py"
-export PYTHONPATH="$DIR/../../../core:${PYTHONPATH:-}"
+HOOK="$DIR/../../hooks/claude-code/stop_flush_claude_code_zed_diffs.py"
+PRE_HOOK="$DIR/../../hooks/claude-code/pre_edit_zed_snapshot.py"
+POST_HOOK="$DIR/../../hooks/claude-code/post_edit_open_in_zed.py"
+export PYTHONPATH="$DIR/../../hooks/core:$DIR/../../../core:${PYTHONPATH:-}"
 PASS=0; FAIL=0
 SID="stopsess"
 
@@ -88,7 +88,7 @@ fi
 
 # Cleanup
 f1hash=$(hash_of "$f1"); f2hash=$(hash_of "$f2")
-rm -f "$f1" "$f2" "$manifest" "/tmp/cc_gen_${f1hash}" "/tmp/cc_gen_${f2hash}"
+rm -f "$f1" "$f2" "$manifest"
 rm -f "/tmp/cc_zed_ptr_${f1hash}" "/tmp/cc_zed_ptr_${f2hash}"
 rm -rf "/tmp/cc_zed_snap_${SID}" "$SHIM_DIR"
 

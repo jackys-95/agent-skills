@@ -23,7 +23,7 @@ templates/wrapper.SKILL.md.tmpl
 Install into Claude Code's skill directory with:
 
 ```bash
-python3 scripts/install_claude_code.py
+python3 scripts/claude-code/install_claude_code.py
 ```
 
 Use `--dry-run` to preview writes, or `--target <dir>` to install somewhere other than `~/.claude/skills`.

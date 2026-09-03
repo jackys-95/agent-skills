@@ -11,6 +11,10 @@ echo "=== platform paths (darwin/linux) ==="
 bash "$DIR/test_platform_paths.sh"
 
 echo ""
+echo "=== shared tmux pane authority ==="
+python3 "$DIR/test_tmux_pane_authority.py"
+
+echo ""
 echo "=== shared Zed/tmux edit-injection runtime ==="
 python3 "$DIR/test_tmux_edit_injection.py"
 
@@ -20,4 +24,4 @@ python3 "$DIR/test_codex_patch.py"
 
 echo ""
 echo "=== Zed + Claude Code installer helpers ==="
-python3 "$DIR/test_install_claude_guidance.py"
+python3 "$DIR/test_install_zed_cc.py"

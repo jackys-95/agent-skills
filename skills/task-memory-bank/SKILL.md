@@ -147,4 +147,4 @@ unhealthy, still update markdown files and tell the user reindexing could not be
 
 See [references/qmd.md](references/qmd.md) for collection naming, repo resolution, and reindex routing.
 
-The qmd skill must be installed separately (`qmd skill install --global --yes` or via `scripts/install_claude_code.py`). For retrieval mechanics — query modes, CLI syntax, MCP call shape — invoke `/qmd` or run `qmd skill show`.
+The qmd skill must be installed separately (`qmd skill install --global --yes` or via `scripts/claude-code/install_claude_code.py`). For retrieval mechanics — query modes, CLI syntax, MCP call shape — invoke `/qmd` or run `qmd skill show`.

@@ -16,17 +16,23 @@ from pathlib import Path
 from unittest import mock
 
 ZED_DIR = Path(__file__).resolve().parents[2]
-HOOKS_DIR = ZED_DIR / "hooks"
+HOOKS_CORE_DIR = ZED_DIR / "hooks" / "core"
+HOOKS_CODEX_DIR = ZED_DIR / "hooks" / "codex"
 CORE_DIR = ZED_DIR.parent / "core"
-sys.path[:0] = [str(HOOKS_DIR), str(CORE_DIR)]
+sys.path[:0] = [
+    str(HOOKS_CODEX_DIR),
+    str(HOOKS_CORE_DIR),
+    str(CORE_DIR),
+]
 
 import manifest  # noqa: E402
 import post_apply_patch_zed_touch as post_hook  # noqa: E402
 import pre_apply_patch_zed_snapshot as pre_hook  # noqa: E402
-import reset_codex_zed_turn as reset_hook  # noqa: E402
 import revert_codex_zed_snapshot as revert_hook  # noqa: E402
 import snapshot_revert  # noqa: E402
 import stop_flush_codex_zed_diffs as stop_hook  # noqa: E402
+import tmux_pane_authority as authority  # noqa: E402
+import zed_turn_lifecycle as lifecycle_hook  # noqa: E402
 
 
 NAMESPACE = "codex_zed"
@@ -38,6 +44,17 @@ class TestCodexHooks(unittest.TestCase):
         self.root = Path(os.path.realpath(self.tmp.name))
         self.session_id = f"codex-hook-{uuid.uuid4().hex}"
         self.paths = []
+        self.state_dir = self.root / "authority"
+        self.state_dir.mkdir()
+        self.state_patch = mock.patch.object(
+            authority,
+            "STATE_DIR",
+            self.state_dir,
+        )
+        self.state_patch.start()
+        self.tmux = "/tmp/tmux-501/default,1234,0"
+        self.pane = "%7"
+        self.owner = authority.OwnerIdentity(4321, "owner-start")
 
     def tearDown(self):
         for path in self.paths:
@@ -53,22 +70,34 @@ class TestCodexHooks(unittest.TestCase):
             snapshot_revert.snapshot_dir(NAMESPACE, self.session_id),
             ignore_errors=True,
         )
+        self.state_patch.stop()
         self.tmp.cleanup()
 
     def track(self, *paths):
         self.paths.extend(paths)
         return paths
 
-    def run_hook(self, module, event, enabled=True):
+    def run_hook(
+        self,
+        module,
+        event,
+        enabled=True,
+        extra_env=None,
+        action=None,
+    ):
         stdout = io.StringIO()
         stderr = io.StringIO()
         env = {"CODEX_ZED_HOOK": "1"} if enabled else {}
+        env.update(extra_env or {})
         with mock.patch.dict(os.environ, env, clear=True):
             with mock.patch.object(sys, "stdin", io.StringIO(json.dumps(event))):
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
                     stderr
                 ):
-                    result = module.main()
+                    if module is lifecycle_hook:
+                        result = module.run("codex", action)
+                    else:
+                        result = module.main()
         return result, stdout.getvalue(), stderr.getvalue()
 
     def patch_event(self, command):
@@ -83,8 +112,19 @@ class TestCodexHooks(unittest.TestCase):
         event = self.patch_event(
             "*** Begin Patch\n*** Add File: x.txt\n+x\n*** End Patch\n"
         )
-        for module in (reset_hook, pre_hook, post_hook, stop_hook):
-            _, stdout, stderr = self.run_hook(module, event, enabled=False)
+        for module, action in (
+            (lifecycle_hook, "begin"),
+            (lifecycle_hook, "reconcile"),
+            (pre_hook, None),
+            (post_hook, None),
+            (stop_hook, None),
+        ):
+            _, stdout, stderr = self.run_hook(
+                module,
+                event,
+                enabled=False,
+                action=action,
+            )
             self.assertEqual(stdout, "")
             self.assertEqual(stderr, "")
 
@@ -96,13 +136,122 @@ class TestCodexHooks(unittest.TestCase):
         manifest_path = snapshot_revert.manifest_path(NAMESPACE, self.session_id)
 
         self.run_hook(
-            reset_hook,
+            lifecycle_hook,
             {"session_id": self.session_id, "agent_id": "child-agent"},
+            action="begin",
         )
         self.assertTrue(os.path.exists(manifest_path))
 
-        self.run_hook(reset_hook, {"session_id": self.session_id})
+        self.run_hook(
+            lifecycle_hook,
+            {"session_id": self.session_id},
+            action="begin",
+        )
         self.assertFalse(os.path.exists(manifest_path))
+
+    def test_parent_prompt_restakes_authority_but_child_prompt_does_not(self):
+        cc_claim = authority.claim_pane_turn(
+            self.tmux,
+            self.pane,
+            "cc",
+            "cc-session",
+            self.owner,
+            token="cc-token",
+        )
+        tmux_env = {"TMUX": self.tmux, "TMUX_PANE": self.pane}
+        with mock.patch.object(
+            authority,
+            "current_owner_identity",
+            return_value=self.owner,
+        ):
+            self.run_hook(
+                lifecycle_hook,
+                {
+                    "session_id": self.session_id,
+                    "agent_id": "child-agent",
+                },
+                extra_env=tmux_env,
+                action="begin",
+            )
+            self.assertEqual(
+                authority.read_pane_claim(self.tmux, self.pane),
+                cc_claim,
+            )
+
+            self.run_hook(
+                lifecycle_hook,
+                {"session_id": self.session_id},
+                extra_env=tmux_env,
+                action="begin",
+            )
+
+        codex_claim = authority.read_pane_claim(self.tmux, self.pane)
+        self.assertIsNotNone(codex_claim)
+        self.assertEqual(codex_claim.harness, "codex")
+        self.assertEqual(codex_claim.session_id, self.session_id)
+        self.assertNotEqual(
+            codex_claim.turn_authority_token,
+            cc_claim.turn_authority_token,
+        )
+
+    def test_codex_session_lifecycle_uses_event_specific_revocation(self):
+        tmux_env = {"TMUX": self.tmux, "TMUX_PANE": self.pane}
+        claim = authority.claim_pane_turn(
+            self.tmux,
+            self.pane,
+            "codex",
+            self.session_id,
+            self.owner,
+            token="codex-token",
+        )
+        with mock.patch.object(
+            authority,
+            "current_owner_identity",
+            return_value=self.owner,
+        ):
+            self.run_hook(
+                lifecycle_hook,
+                {
+                    "hook_event_name": "SessionStart",
+                    "session_id": self.session_id,
+                    "source": "compact",
+                },
+                extra_env=tmux_env,
+                action="reconcile",
+            )
+            self.assertEqual(
+                authority.read_pane_claim(self.tmux, self.pane),
+                claim,
+            )
+
+            self.run_hook(
+                lifecycle_hook,
+                {
+                    "hook_event_name": "SessionEnd",
+                    "session_id": "older-session",
+                    "reason": "other",
+                },
+                extra_env=tmux_env,
+                action="reconcile",
+            )
+            self.assertEqual(
+                authority.read_pane_claim(self.tmux, self.pane),
+                claim,
+            )
+
+            self.run_hook(
+                lifecycle_hook,
+                {
+                    "hook_event_name": "SessionStart",
+                    "session_id": "new-session",
+                    "source": "clear",
+                },
+                extra_env=tmux_env,
+                action="reconcile",
+            )
+            self.assertIsNone(
+                authority.read_pane_claim(self.tmux, self.pane)
+            )
 
     def test_multi_file_move_delete_diff_and_revert(self):
         existing, deleted, move_old = self.track(

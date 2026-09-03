@@ -42,7 +42,7 @@ The adapter was validated against Codex CLI 0.146.1.322.
 
 The sanitized probe record and reusable capture tool are in
 `docs/probes/codex-hook-payload-probe.md` and
-`scripts/probes/codex_hook_payload_probe.py`.
+`scripts/codex/probes/codex_hook_payload_probe.py`.
 
 ## Lifecycle
 
@@ -118,7 +118,7 @@ reply.
 Run:
 
 ```bash
-python3 adapters/zed/install_codex.py
+python3 adapters/zed/install_zed_codex.py
 ```
 
 The installer:

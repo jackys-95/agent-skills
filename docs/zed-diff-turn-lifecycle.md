@@ -4,8 +4,12 @@
 settled-state reindex review-window protocol). §6 open questions resolved by live probes
 (2026-07-04); ready to implement.
 **Date:** 2026-07-03 (probe results 2026-07-04)
-**Component:** zed-cc adapter hooks (`adapters/zed/hooks/`) — `pre_edit_zed_snapshot.py`,
+**Historical component:** ZedCC adapter hooks (`adapters/zed/hooks/`) — `pre_edit_zed_snapshot.py`,
 `post_edit_open_in_zed.py`, `reset_zed_turn.py`, `stop_flush_zed_diffs.py`, `revert_zed_snapshot.py`
+
+This document records the pre-extraction architecture and retains the source names used in July
+2026. Current hook ownership is split under `adapters/zed/hooks/core/`,
+`adapters/zed/hooks/claude-code/`, and `adapters/zed/hooks/codex/`.
 
 ---
 
