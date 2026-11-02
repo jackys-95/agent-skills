@@ -29,6 +29,26 @@ python3 adapters/zed/install_zed_cc.py
 
 This copies hook scripts into `~/.claude/hooks/`, registers them in `~/.claude/settings.json` (PreToolUse/PostToolUse on `Edit|Write`, turn-boundary UserPromptSubmit/Stop hooks, and SessionStart/SessionEnd pane-authority hooks), sets `defaultMode: acceptEdits`, and upserts Zed launch, review, and phase-turn guidance into `~/.claude/CLAUDE.md`.
 
+### Optional: terminal bell for Zed terminal threads
+
+Zed shows a terminal thread's blue dot as soon as its terminal receives a bell. Claude Code's own end-of-turn signal (`idle_prompt`) arrives after a fixed delay, so the dot lags. Opt in to bell hooks that ring immediately:
+
+```bash
+python3 adapters/zed/install_zed_cc.py --with-bell
+```
+
+This registers `zed_terminal_bell.py` on `Stop` (turn ended) and `PermissionRequest` (permission dialog opened). Question and MCP elicitation dialogs are not covered: the `Notification` hook with matcher `elicitation_dialog` could not be tested, so it is not registered. The script only acts when `CC_ZED_HOOK` is set, so non-Zed sessions are unaffected. It is tested in Zed terminal threads only, not in ACP external agent threads. Running the installer without the flag registers none of this, and re-running with it does not duplicate entries.
+
+The installer does not change your Claude Code settings or your shell config. Claude Code also sends its own delayed `idle_prompt` bell, so you may hear a second bell after a turn (untested). `preferredNotifChannel` is a global setting, so setting it in `~/.claude/settings.json` would silence the bell in every session. To silence it only in Zed terminal threads, paste this into `~/.zshrc`:
+
+```zsh
+if [[ -n "$CC_ZED_HOOK" ]]; then
+  claude() { command claude --settings '{"preferredNotifChannel":"notifications_disabled"}' "$@"; }
+fi
+```
+
+`CC_ZED_HOOK` is set only in Zed terminals, and the shell checks it once at startup. The function passes all arguments through, so aliases that call `claude` (such as `cc-sonnet`) pick it up. It replaces any existing `claude` alias or function you define, and whether `--settings` layers over or replaces your user settings is untested.
+
 ## Install ZedCodex
 
 Install the Codex skill adapter, then the ZedCodex hooks:

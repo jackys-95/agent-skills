@@ -48,6 +48,7 @@ python3 adapters/zed/tests/unit/test_tmux_pane_authority.py
 python3 adapters/zed/tests/unit/test_tmux_edit_injection.py
 python3 adapters/zed/tests/unit/test_codex_patch.py
 python3 adapters/zed/tests/unit/test_install_zed_cc.py
+python3 adapters/zed/tests/unit/test_zed_terminal_bell.py
 ```
 
 ### Integration tests

@@ -25,3 +25,7 @@ python3 "$DIR/test_codex_patch.py"
 echo ""
 echo "=== Zed + Claude Code installer helpers ==="
 python3 "$DIR/test_install_zed_cc.py"
+
+echo ""
+echo "=== Zed terminal bell hook ==="
+python3 "$DIR/test_zed_terminal_bell.py"

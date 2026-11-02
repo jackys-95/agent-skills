@@ -165,5 +165,73 @@ class TestInstallClaudeGuidance(unittest.TestCase):
             self.assertFalse((hooks_dir / name).exists())
 
 
+class TestBellOptIn(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.hooks_dir = Path(self.tmp.name) / "hooks"
+        self.hooks_dir.mkdir()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_main(self, argv, settings):
+        def retarget(hooks):
+            return [{**h, "dest": self.hooks_dir / h["dest"].name} for h in hooks]
+
+        with mock.patch.multiple(
+            zed_install,
+            CLAUDE_HOOKS_DIR=self.hooks_dir,
+            HOOKS=retarget(zed_install.HOOKS),
+            BELL_HOOKS=retarget(zed_install.BELL_HOOKS),
+            SCRIPTS=[],
+            load_settings=lambda: settings,
+            save_settings=lambda data: None,
+            install_claude_md=lambda: None,
+            check_zed_cli=lambda: True,
+            check_watcher=lambda: True,
+        ), mock.patch("builtins.print") as printed:
+            zed_install.main(argv)
+        return "\n".join(str(c.args[0]) for c in printed.call_args_list if c.args)
+
+    @staticmethod
+    def bell_commands(settings, event):
+        return [
+            (entry.get("matcher"), hook["command"])
+            for entry in settings.get("hooks", {}).get(event, [])
+            for hook in entry["hooks"]
+            if "zed_terminal_bell.py" in hook["command"]
+        ]
+
+    def test_default_install_registers_no_bell(self):
+        settings = {}
+        output = self.run_main([], settings)
+
+        for event in ("Stop", "PermissionRequest", "Notification"):
+            self.assertEqual(self.bell_commands(settings, event), [])
+        self.assertNotIn(zed_install.ZSH_SILENCE_SNIPPET, output)
+        self.assertFalse((self.hooks_dir / "zed_terminal_bell.py").exists())
+
+    def test_with_bell_registers_two_events_once(self):
+        settings = {}
+        self.run_main(["--with-bell"], settings)
+        output = self.run_main(["--with-bell"], settings)
+
+        self.assertEqual(len(self.bell_commands(settings, "Stop")), 1)
+        self.assertEqual(len(self.bell_commands(settings, "PermissionRequest")), 1)
+        self.assertEqual(self.bell_commands(settings, "Notification"), [])
+        self.assertTrue((self.hooks_dir / "zed_terminal_bell.py").exists())
+        stop_commands = [
+            hook["command"]
+            for entry in settings["hooks"]["Stop"]
+            for hook in entry["hooks"]
+        ]
+        self.assertEqual(
+            sum("stop_flush_claude_code_zed_diffs.py" in c for c in stop_commands), 1
+        )
+        self.assertIn(zed_install.ZSH_SILENCE_SNIPPET, output)
+        self.assertIn('[[ -n "$CC_ZED_HOOK" ]]', output)
+        self.assertNotIn("preferredNotifChannel", settings)
+
+
 if __name__ == "__main__":
     unittest.main()
