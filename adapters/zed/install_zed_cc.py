@@ -8,6 +8,7 @@ Run once:
 Then set CC_ZED_HOOK=1 in Zed's terminal environment:
     ~/.config/zed/settings.json → "terminal": { "env": { "CC_ZED_HOOK": "1" } }
 """
+import argparse
 import json
 import pathlib
 import shlex
@@ -131,6 +132,22 @@ HOOKS = [
     },
 ]
 
+# Opt-in bell hooks (--with-bell). Zed shows a terminal thread's blue dot when the
+# terminal receives a bell; these ring it at turn end and when a dialog opens.
+BELL_SCRIPT = HOOKS_CLAUDE_CODE_DIR / "zed_terminal_bell.py"
+BELL_HOOKS = [
+    {
+        "event": event,
+        "matcher": matcher,
+        "src": BELL_SCRIPT,
+        "dest": CLAUDE_HOOKS_DIR / BELL_SCRIPT.name,
+    }
+    for event, matcher in (
+        ("Stop", None),
+        ("PermissionRequest", None),
+    )
+]
+
 # Scripts copied to hooks dir but not registered as CC hooks. Imported modules
 # MUST land beside their callers because the installed runtime is flat.
 SCRIPTS = [
@@ -223,12 +240,43 @@ def check_watcher():
     return False
 
 
-def main():
+ZSH_SILENCE_SNIPPET = """\
+if [[ -n "$CC_ZED_HOOK" ]]; then
+  claude() { command claude --settings '{"preferredNotifChannel":"notifications_disabled"}' "$@"; }
+fi"""
+
+
+def print_bell_notes():
+    print(
+        "\nBell hooks installed.\n"
+        "Optional: Claude Code also sends a delayed idle_prompt bell, so you may"
+        " get a second bell after a turn. The installer does not change any"
+        " Claude Code settings or your shell config. To silence that bell only"
+        " in Zed terminal threads, paste this into ~/.zshrc (untested):\n\n"
+        f"{ZSH_SILENCE_SNIPPET}\n\n"
+        "It runs only where CC_ZED_HOOK is set, so other sessions keep their"
+        " normal notification channel."
+    )
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Install ZedCC hooks.")
+    parser.add_argument(
+        "--with-bell",
+        action="store_true",
+        help="also register opt-in terminal bell hooks (Stop, PermissionRequest)"
+        " for Zed terminal threads",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
     CLAUDE_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
     claude_settings = load_settings()
 
     copied = set()
-    for hook in HOOKS:
+    for hook in HOOKS + (BELL_HOOKS if args.with_bell else []):
         if hook["dest"] not in copied:
             shutil.copy2(hook["src"], hook["dest"])
             hook["dest"].chmod(0o755)
@@ -256,6 +304,9 @@ def main():
 
     # Install CLAUDE.md section
     install_claude_md()
+
+    if args.with_bell:
+        print_bell_notes()
 
     # Remind user to set the guard env var in Zed agent_servers config
     print(
