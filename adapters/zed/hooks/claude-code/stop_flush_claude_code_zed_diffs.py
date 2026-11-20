@@ -83,6 +83,12 @@ def main():
     for file_path, base in edits:
         zed_base = os.devnull if base == manifest.NEW else base
         cmd += ["--diff", zed_base, file_path]
+    # While Zed is the active app it ignores cwd for a diff-only `--add` and follows
+    # focus. A positional project path makes the call match that project instead. It
+    # must come AFTER every `--diff` pair: the CLI reads everything after the first
+    # positional as paths, which would open the diff operands as plain files and
+    # attach them to the project as roots. Subdirectories are accepted.
+    cmd.append(project_cwd)
     subprocess.Popen(
         cmd, cwd=project_cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )

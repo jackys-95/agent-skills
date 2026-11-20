@@ -68,7 +68,8 @@ def main():
 
     # Zed matches the diff to an open project by the CLI's cwd; a cwd outside every
     # open project falls back to the focused workspace and attaches it as a root.
-    project_cwd = resolve_project_cwd(event)
+    # `env={}`: CLAUDE_PROJECT_DIR is Claude-only; Codex supplies its cwd in the event.
+    project_cwd = resolve_project_cwd(event, env={})
     if not project_cwd:
         _warn(
             "[Zed] no safe project directory for the end-of-turn review (cwd is the "
@@ -80,6 +81,12 @@ def main():
     cmd = [zed, "-a"]
     for left, right in pairs:
         cmd += ["--diff", left, right]
+    # While Zed is the active app it ignores cwd for a diff-only `--add` and follows
+    # focus. A positional project path makes the call match that project instead. It
+    # must come AFTER every `--diff` pair: the CLI reads everything after the first
+    # positional as paths, which would open the diff operands as plain files and
+    # attach them to the project as roots. Subdirectories are accepted.
+    cmd.append(project_cwd)
 
     try:
         subprocess.Popen(

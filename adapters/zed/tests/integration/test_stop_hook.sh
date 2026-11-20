@@ -60,19 +60,22 @@ CC_ZED_HOOK=1 python3 "$PRE_HOOK"  <<< "{\"session_id\":\"$SID\",\"tool_input\":
 echo "created2" > "$f2"
 CC_ZED_HOOK=1 python3 "$POST_HOOK" <<< "{\"session_id\":\"$SID\",\"tool_input\":{\"file_path\":\"$f2\"}}" > /dev/null
 
+PROJ="$SHIM_DIR/project"; mkdir -p "$PROJ"
 : > "$ZED_ARGS_LOG"
-out=$(env -u TMUX_PANE CC_ZED_HOOK=1 PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< "{\"session_id\":\"$SID\"}" 2>&1)
+out=$(env -u TMUX_PANE CC_ZED_HOOK=1 CLAUDE_PROJECT_DIR="$PROJ" PATH="$SHIM_DIR:$PATH" python3 "$HOOK" <<< "{\"session_id\":\"$SID\"}" 2>&1)
 code=$?
 wait_for_log "$ZED_ARGS_LOG"
 args=$(cat "$ZED_ARGS_LOG" 2>/dev/null)
-# Expect: -a, both files present, two --diff occurrences, /dev/null for the new file.
+# Expect: -a, both files present, two --diff occurrences, /dev/null for the new file,
+# and the originating project as the LAST argument (after every --diff pair).
 ndiff=$(grep -o -- '--diff' <<< "$args" | wc -l | tr -d ' ')
 if [ $code -eq 0 ] \
    && grep -q -- '-a' <<< "$args" \
    && [ "$ndiff" = "2" ] \
    && grep -q -- "$f1" <<< "$args" \
-   && grep -q -- "/dev/null $f2" <<< "$args"; then
-    ok "3c: multi-file turn → one multi-diff, two --diff pairs, new file vs /dev/null"
+   && grep -q -- "/dev/null $f2" <<< "$args" \
+   && [[ "$args" == *" $PROJ" ]]; then
+    ok "3c: multi-file turn → one multi-diff, two --diff pairs, new file vs /dev/null, project path last"
 else
     fail "3c: exit=$code ndiff=$ndiff args='$args'"
 fi

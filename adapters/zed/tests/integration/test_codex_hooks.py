@@ -317,12 +317,24 @@ class TestCodexHooks(unittest.TestCase):
         with mock.patch.object(stop_hook, "resolve_zed", return_value="/fake/zed"):
             with mock.patch.object(stop_hook.subprocess, "Popen") as popen:
                 _, stop_stdout, _ = self.run_hook(
-                    stop_hook, {"session_id": self.session_id}
+                    stop_hook,
+                    {"session_id": self.session_id, "cwd": str(self.root)},
+                    extra_env={"CLAUDE_PROJECT_DIR": "/should/be/ignored"},
                 )
 
         self.assertEqual(stop_stdout, "")
         cmd = popen.call_args.args[0]
-        pairs = [tuple(cmd[index + 1 : index + 3]) for index in range(2, len(cmd), 3)]
+        # The originating project is a positional path AFTER every --diff pair, and
+        # also the process cwd. A positional path before a --diff would make the CLI
+        # read the diff operands as plain files.
+        self.assertEqual(cmd[-1], str(self.root))
+        self.assertEqual(popen.call_args.kwargs["cwd"], str(self.root))
+        diff_part = cmd[2:-1]
+        pairs = [
+            tuple(diff_part[index + 1 : index + 3])
+            for index in range(0, len(diff_part), 3)
+        ]
+        self.assertTrue(all(diff_part[index] == "--diff" for index in range(0, len(diff_part), 3)))
         self.assertEqual(cmd[:2], ["/fake/zed", "-a"])
         self.assertIn((os.devnull, str(new)), pairs)
         self.assertIn((first_bases[str(deleted)], os.devnull), pairs)
