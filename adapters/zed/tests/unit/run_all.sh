@@ -7,6 +7,10 @@ echo "=== prune_stale_roots.py ==="
 python3 "$DIR/test_prune_stale_roots.py"
 
 echo ""
+echo "=== flush hook project cwd selection ==="
+python3 "$DIR/test_zed_project_cwd.py"
+
+echo ""
 echo "=== platform paths (darwin/linux) ==="
 bash "$DIR/test_platform_paths.sh"
 

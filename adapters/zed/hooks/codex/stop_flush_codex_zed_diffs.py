@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 import manifest
-from _zed_common import resolve_zed
+from _zed_common import resolve_project_cwd, resolve_zed
 
 NAMESPACE = "codex_zed"
 
@@ -66,12 +66,25 @@ def main():
         )
         return
 
+    # Zed matches the diff to an open project by the CLI's cwd; a cwd outside every
+    # open project falls back to the focused workspace and attaches it as a root.
+    project_cwd = resolve_project_cwd(event)
+    if not project_cwd:
+        _warn(
+            "[Zed] no safe project directory for the end-of-turn review (cwd is the "
+            "home directory, `/`, or missing); it was skipped to avoid adding that "
+            "directory to a Zed project. Start the session inside a project directory."
+        )
+        return
+
     cmd = [zed, "-a"]
     for left, right in pairs:
         cmd += ["--diff", left, right]
 
     try:
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(
+            cmd, cwd=project_cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
     except OSError as exc:
         _warn(f"[Zed] failed to open end-of-turn review: {exc}")
 

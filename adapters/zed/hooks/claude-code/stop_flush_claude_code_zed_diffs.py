@@ -15,7 +15,7 @@ import sys
 
 import manifest
 import tmux_pane_authority as authority
-from _zed_common import resolve_zed
+from _zed_common import resolve_project_cwd, resolve_zed
 from tmux_edit_injection import launch_watchers
 
 NAMESPACE = "cc_zed"
@@ -65,11 +65,27 @@ def main():
     # so no path attaches to the workspace as a loose worktree. New files diff
     # against /dev/null — the manifest's "new" sentinel translates to the real
     # /dev/null path only here, at the Zed-CLI boundary. Verified against Zed 1.9.0.
+    #
+    # The process cwd is passed explicitly: Zed matches the diff to an open project by
+    # it, and a cwd outside every open project falls back to the focused workspace AND
+    # attaches that directory to it as a root (e.g. a session started from ~).
+    project_cwd = resolve_project_cwd(event)
+    if not project_cwd:
+        print(
+            "[Zed] no safe project directory for the diff pane (cwd is the home "
+            "directory, `/`, or missing) — diff pane skipped to avoid adding it to a "
+            "Zed project. Start the session inside a project directory.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     cmd = [zed, "-a"]
     for file_path, base in edits:
         zed_base = os.devnull if base == manifest.NEW else base
         cmd += ["--diff", zed_base, file_path]
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.Popen(
+        cmd, cwd=project_cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
 
     # tmux edit-injector: when CC runs in a tmux pane, watch each file for a manual
     # Cmd+S in the diff and inject the saved delta back into the pane. One watcher
