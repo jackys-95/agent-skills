@@ -119,3 +119,4 @@ Zed CLI reference at zed.dev (newer build — use with caution).
 2. `adapters/zed/tests/` (`test_post_hook.sh`, `TEST_PLAN.md`) — assert the `-a` flag.
 3. `adapters/zed/README.md`, `adapters/zed/install_zed_cc.py` — update `zed --diff` references to `zed -a --diff`.
 4. Post the root-cause correction on issue #22 and close with the fix commit.
+5. Zed 1.29.1 changed how `--add` chooses a workspace while a Zed window is active: it follows focus and ignores the CLI working directory for a diff-only call. The hooks now also pass the originating project directory as a trailing positional path. See [Zed CLI diff routing](zed-cli-internals.md).
